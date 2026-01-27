@@ -14,8 +14,16 @@ import { ptBR } from 'date-fns/locale';
 export default function OttoPage() {
   const metrics = getOttoMetrics();
   const stagnantLeads = getStagnantLeads().slice(0, 10);
-  const interventions = getEventsByType('INTERVENCAO_OTTO').slice(0, 10);
+  const interventions = getEventsByType('INTERVENCAO_OTTO')
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 10);
   const transbordos = getEventsByType('LEAD_TRANSBORDADO').slice(0, 5);
+
+  // Calcular tooltip da receita salva
+  const ottoAgent = AGENTS_DATA.find(a => a.id === 'agent-otto');
+  const leadsSalvos = ottoAgent?.metricas_agregadas.leads_salvos || 0;
+  const ticketMedio = ottoAgent?.metricas_agregadas.ticket_medio_resgate || 0;
+  const receitaSalvaTooltip = `${leadsSalvos} leads resgatados × ${formatCurrency(ticketMedio)} (ticket médio) = Projeção baseada em LTV médio`;
 
   return (
     <div className="space-y-6">
@@ -55,6 +63,7 @@ export default function OttoPage() {
           title="Receita Salva"
           value={formatCurrency(metrics.receita_salva)}
           icon={<DollarSign className="h-5 w-5" />}
+          tooltip={receitaSalvaTooltip}
         />
       </div>
 

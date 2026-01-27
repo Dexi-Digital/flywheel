@@ -39,13 +39,13 @@ export default function AgentPage({ params }: PageProps) {
         return [
           { title: 'Speed to Lead', value: `${agent.metricas_agregadas.tempo_medio_resposta || 23}s`, icon: <Clock className="h-5 w-5" /> },
           { title: 'Leads Ativos', value: agent.metricas_agregadas.leads_ativos || leads.length, icon: <Users className="h-5 w-5" /> },
-          { title: 'Taxa de Resposta < 60s', value: '87%', icon: <Zap className="h-5 w-5" /> },
-          { title: 'Agendamentos', value: agent.metricas_agregadas.conversoes || conversoes, icon: <TrendingUp className="h-5 w-5" /> },
+          { title: 'Disparos Hoje', value: agent.metricas_agregadas.disparos_hoje || 0, icon: <Zap className="h-5 w-5" /> },
+          { title: 'Taxa de Resposta', value: `${((agent.metricas_agregadas.taxa_resposta || 0) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
         ];
       case 'BDR':
         return [
-          { title: 'Prospecções/Dia', value: '45', icon: <Users className="h-5 w-5" /> },
-          { title: 'Taxa de Conexão', value: '34%', icon: <TrendingUp className="h-5 w-5" /> },
+          { title: 'Disparos Hoje', value: agent.metricas_agregadas.disparos_hoje || 0, icon: <Users className="h-5 w-5" /> },
+          { title: 'Taxa de Resposta', value: `${((agent.metricas_agregadas.taxa_resposta || 0) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
           { title: 'Reuniões Agendadas', value: agent.metricas_agregadas.conversoes || 89, icon: <Zap className="h-5 w-5" /> },
           { title: 'Receita Gerada', value: formatCurrency(receitaTotal), icon: <DollarSign className="h-5 w-5" /> },
         ];
@@ -74,6 +74,36 @@ export default function AgentPage({ params }: PageProps) {
   };
 
   const agentMetrics = getAgentMetrics();
+
+  // Dados mockados para Sales Pilot
+  const topDuvidasTecnicas = [
+    { tema: 'Autonomia', count: 45, percentual: 28.8 },
+    { tema: 'Carregamento', count: 38, percentual: 24.4 },
+    { tema: 'Segurança', count: 32, percentual: 20.5 },
+    { tema: 'Manutenção', count: 24, percentual: 15.4 },
+    { tema: 'Conectividade', count: 17, percentual: 10.9 },
+  ];
+
+  const lacunasIdentificadas = [
+    {
+      titulo: 'Falta de informação sobre garantia estendida',
+      impacto: 'Alto',
+      ocorrencias: 12,
+      status: 'Em análise'
+    },
+    {
+      titulo: 'Dúvidas sobre compatibilidade com frotas mistas',
+      impacto: 'Médio',
+      ocorrencias: 8,
+      status: 'Documentação em criação'
+    },
+    {
+      titulo: 'Processo de retrofit não está claro',
+      impacto: 'Alto',
+      ocorrencias: 15,
+      status: 'Escalado para produto'
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -104,6 +134,133 @@ export default function AgentPage({ params }: PageProps) {
           />
         ))}
       </div>
+
+      {/* Métricas de Disparos e Engajamento */}
+      {(agent.tipo === 'SDR' || agent.tipo === 'BDR' || agent.tipo === 'PILOT') && agent.metricas_agregadas.disparos_hoje !== undefined && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Métricas de Disparos e Engajamento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Hoje</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+                  {agent.metricas_agregadas.disparos_hoje || 0}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">disparos</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Esta Semana</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+                  {agent.metricas_agregadas.disparos_semana || 0}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">disparos</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Este Mês</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+                  {agent.metricas_agregadas.disparos_mes || 0}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">disparos</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Taxa de Resposta</p>
+                <p className="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">
+                  {((agent.metricas_agregadas.taxa_resposta || 0) * 100).toFixed(0)}%
+                </p>
+                <p className="mt-1 text-xs text-gray-500">média geral</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Widgets Especializados para Sales Pilot */}
+      {agent.tipo === 'PILOT' && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Top Dúvidas Técnicas */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Dúvidas Técnicas Recentes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {topDuvidasTecnicas.map((duvida, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {duvida.tema}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          ({duvida.count} consultas)
+                        </span>
+                      </div>
+                      <div className="mt-1 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+                        <div
+                          className="h-2 rounded-full bg-blue-600"
+                          style={{ width: `${duvida.percentual}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="ml-4 text-sm font-medium text-gray-600 dark:text-gray-400">
+                      {duvida.percentual.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lacunas Identificadas */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Lacunas Identificadas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {lacunasIdentificadas.map((lacuna, index) => (
+                  <div
+                    key={index}
+                    className="rounded-lg border border-gray-200 p-3 dark:border-gray-700"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {lacuna.titulo}
+                        </p>
+                        <div className="mt-2 flex items-center gap-3">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                              lacuna.impacto === 'Alto'
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                                : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                            }`}
+                          >
+                            {lacuna.impacto}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {lacuna.ocorrencias} ocorrências
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                      Status: {lacuna.status}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  💡 <strong>{agent.metricas_agregadas.escalacoes_nivel2 || 0}</strong> interações escaladas para Nível 2 este mês
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Recent Leads */}

@@ -2,7 +2,7 @@
 
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Info } from 'lucide-react';
 import { ReactNode } from 'react';
 
 interface KPICardProps {
@@ -13,6 +13,7 @@ interface KPICardProps {
   icon?: ReactNode;
   trend?: 'up' | 'down' | 'neutral';
   className?: string;
+  tooltip?: string;
 }
 
 export function KPICard({
@@ -23,6 +24,7 @@ export function KPICard({
   icon,
   trend,
   className,
+  tooltip,
 }: KPICardProps) {
   const isPositive = trend === 'up' || (change !== undefined && change >= 0);
   const showTrend = change !== undefined;
@@ -31,9 +33,22 @@ export function KPICard({
     <Card className={cn('relative overflow-hidden', className)}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-            {title}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              {title}
+            </p>
+            {tooltip && (
+              <div className="group relative">
+                <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                <div className="absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 group-hover:block z-10">
+                  <div className="whitespace-nowrap rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg dark:bg-gray-700">
+                    {tooltip}
+                    <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
             {value}
           </p>

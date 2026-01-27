@@ -86,7 +86,61 @@ function generateEvent(index: number): Event {
 }
 
 // Generate 500 events for demo
-export const EVENTS_DATA: Event[] = Array.from({ length: 500 }, (_, i) => generateEvent(i));
+const generatedEvents: Event[] = Array.from({ length: 500 }, (_, i) => generateEvent(i));
+
+// Add recent OTTO interventions (last few hours/days) for a "live" feel
+const recentInterventions: Event[] = [
+  {
+    id: 'event-recent-001',
+    tipo: 'INTERVENCAO_OTTO',
+    lead_id: LEADS_DATA[0]?.id || 'lead-0001',
+    agente_id: 'agent-otto',
+    metadata: {
+      motivo: 'Lead sem contato há 72h',
+      resultado: 'sucesso',
+      valor: 45000,
+    },
+    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 horas atrás
+  },
+  {
+    id: 'event-recent-002',
+    tipo: 'INTERVENCAO_OTTO',
+    lead_id: LEADS_DATA[1]?.id || 'lead-0002',
+    agente_id: 'agent-otto',
+    metadata: {
+      motivo: 'Oportunidade em risco',
+      resultado: 'pendente',
+      valor: 78000,
+    },
+    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 horas atrás
+  },
+  {
+    id: 'event-recent-003',
+    tipo: 'INTERVENCAO_OTTO',
+    lead_id: LEADS_DATA[2]?.id || 'lead-0003',
+    agente_id: 'agent-otto',
+    metadata: {
+      motivo: 'Lead sem contato há 72h',
+      resultado: 'sucesso',
+      valor: 62000,
+    },
+    timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 dia atrás
+  },
+  {
+    id: 'event-recent-004',
+    tipo: 'INTERVENCAO_OTTO',
+    lead_id: LEADS_DATA[3]?.id || 'lead-0004',
+    agente_id: 'agent-otto',
+    metadata: {
+      motivo: 'Taxa de resposta crítica',
+      resultado: 'sucesso',
+      valor: 34000,
+    },
+    timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 dias atrás
+  },
+];
+
+export const EVENTS_DATA: Event[] = [...generatedEvents, ...recentInterventions];
 
 export function getEventsByType(tipo: EventType): Event[] {
   return EVENTS_DATA.filter((event) => event.tipo === tipo);

@@ -59,6 +59,22 @@ export interface AgentMetrics {
   taxa_sucesso?: number;
   receita_gerada?: number;
   receita_recuperada?: number;
+  // Métricas de disparos e engajamento
+  disparos_hoje?: number;
+  disparos_semana?: number;
+  disparos_mes?: number;
+  taxa_resposta?: number;
+  // Métricas específicas do OTTO
+  leads_salvos?: number;
+  intervencoes?: number;
+  taxa_sucesso_pos_transbordo?: number;
+  receita_salva?: number;
+  tempo_medio_intervencao?: number;
+  ticket_medio_resgate?: number;
+  // Métricas específicas do Sales Pilot
+  duvidas_tecnicas_resolvidas?: number;
+  escalacoes_nivel2?: number;
+  lacunas_identificadas?: number;
   [key: string]: number | undefined;
 }
 
