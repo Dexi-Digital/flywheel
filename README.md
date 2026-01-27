@@ -26,7 +26,7 @@ Painel executivo de governança e performance para monitoramento de agentes aut�
 - **Fernanda** - Win-back/Reativação (Leads Reativados, CAC Evitado)
 - **Ângela** - Suporte
 - **Victor** - Financeiro/Cobrança (Inadimplências, Taxa de Recuperação)
-- **Volvo Pilot** - Agente especializado
+- **Sales Pilot** - Agente especializado
 - **OTTO** - Governança e orquestração
 
 ### Painel OTTO

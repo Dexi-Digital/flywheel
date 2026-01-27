@@ -99,11 +99,11 @@ export const AGENTS_DATA: Agent[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'agent-volvo-pilot',
-    nome: 'Volvo Pilot',
+    id: 'agent-sales-pilot',
+    nome: 'Sales Pilot',
     tipo: 'PILOT' as AgentType,
     status: 'ATIVO' as AgentStatus,
-    avatar_url: '/avatars/volvo.png',
+    avatar_url: '/avatars/sales-pilot.png',
     metricas_agregadas: {
       leads_ativos: 15,
       conversoes: 12,

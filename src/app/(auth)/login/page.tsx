@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,28 +14,28 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { login, user } = useAuthStore();
+  const { login } = useAuthStore();
   const router = useRouter();
-
-  useEffect(() => {
-    if (user) {
-      router.push('/');
-    }
-  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
+    console.log('Login attempt:', { email, password });
+
     try {
       const success = await login(email, password);
+      console.log('Login result:', success);
+
       if (success) {
-        router.push('/');
+        console.log('Redirecting to /dashboard');
+        router.replace('/dashboard');
       } else {
         setError('Credenciais inválidas. Para demo, use lorrayne@dexidigital.com.br / demo2024');
       }
-    } catch {
+    } catch (error) {
+      console.error('Login error:', error);
       setError('Erro ao fazer login. Tente novamente.');
     } finally {
       setIsSubmitting(false);

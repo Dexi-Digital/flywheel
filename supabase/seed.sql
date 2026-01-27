@@ -20,7 +20,7 @@ INSERT INTO agents (id, nome, tipo, status, metricas_agregadas) VALUES
   ('a0000001-0000-0000-0000-000000000006', 'Victor', 'FINANCEIRO', 'ATIVO',
    '{"leads_ativos": 52, "inadimplencias_resolvidas": 189, "tempo_medio_resolucao": 72, "taxa_sucesso": 0.78, "receita_recuperada": 678000}'),
   
-  ('a0000001-0000-0000-0000-000000000007', 'Volvo Pilot', 'PILOT', 'ATIVO',
+  ('a0000001-0000-0000-0000-000000000007', 'Sales Pilot', 'PILOT', 'ATIVO',
    '{"leads_ativos": 15, "conversoes": 12, "tempo_medio_resposta": 28, "taxa_sucesso": 0.80, "receita_gerada": 345000}'),
   
   ('a0000001-0000-0000-0000-000000000008', 'OTTO', 'GOVERNANCA', 'ATIVO',
