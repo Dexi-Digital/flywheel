@@ -47,7 +47,7 @@ export function KanbanCard({ lead }: KanbanCardProps) {
 
       {/* Agent */}
       <div className="mb-3 flex items-center gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-        <Avatar name={lead.agente.nome} size="xs" />
+        <Avatar name={lead.agente.nome} size="sm" />
         <span className="text-xs text-gray-600 dark:text-gray-400">{lead.agente.nome}</span>
       </div>
 
