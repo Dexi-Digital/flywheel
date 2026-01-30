@@ -24,12 +24,7 @@ const mainNavItems = [
     href: '/dashboard/leads',
     label: 'Leads',
     icon: Users,
-  },
-  {
-    href: '/dashboard/otto',
-    label: 'OTTO Governance',
-    icon: Bot,
-  },
+  }
 ];
 
 export function Sidebar() {
