@@ -50,6 +50,8 @@ export interface Agent {
   metricas_agregadas: AgentMetrics;
   created_at: string;
   updated_at: string;
+  leads: Lead[];
+  events: Event[];
 }
 
 export interface AgentMetrics {
@@ -82,7 +84,7 @@ export interface Lead {
   id: string;
   nome: string;
   email: string;
-  telefone?: string;
+  whatsapp?: string;
   empresa?: string;
   origem: LeadOrigin;
   status: LeadStatus;

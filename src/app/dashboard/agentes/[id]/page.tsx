@@ -1,16 +1,16 @@
 'use client';
 
-import { use } from 'react';
-import { notFound } from 'next/navigation';
+import { use, useEffect, useState, useCallback } from 'react';
 import { KPICard } from '@/components/metrics/kpi-card';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
-import { getAgentById, getLeadsByAgent, getEventsByAgent } from '@/lib/mock-data';
+import { buildService } from '@/services/factory';
 import { getAgentTypeLabel, formatCurrency, getStatusLabel, getStatusColor } from '@/lib/utils';
-import { Clock, Users, TrendingUp, DollarSign, Zap, RefreshCcw } from 'lucide-react';
+import { Clock, Users, TrendingUp, DollarSign, Zap, RefreshCcw, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import type { Agent } from '@/types/database.types';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -18,17 +18,98 @@ interface PageProps {
 
 export default function AgentPage({ params }: PageProps) {
   const { id } = use(params);
-  const agent = getAgentById(id);
+  const [agent, setAgent] = useState<Agent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!agent) {
-    notFound();
+  const loadAgentData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const service = buildService(id);
+      
+      const agentData = await service.getAgent(id);
+      
+      console.log('🔍 Agent carregado:', agentData);
+      console.log('📊 Leads:', agentData.leads);
+      console.log('📅 Events:', agentData.events);
+      
+      setAgent(agentData);
+    } catch (err) {
+      console.error('❌ Erro ao carregar dados:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao carregar dados do agente');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadAgentData();
+  }, [loadAgentData]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <p className="text-gray-500">Carregando...</p>
+      </div>
+    );
   }
 
-  const leads = getLeadsByAgent(id);
-  const events = getEventsByAgent(id).slice(0, 10);
-  const conversoes = leads.filter((l) => l.status === 'GANHO').length;
-  const taxaConversao = leads.length > 0 ? (conversoes / leads.length) * 100 : 0;
-  const receitaTotal = leads
+  if (error) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-8">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
+                <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
+                Erro ao carregar dados
+              </h3>
+              <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
+                {error}
+              </p>
+              <button
+                onClick={loadAgentData}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Tentar novamente
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!agent) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-8">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/20">
+                <AlertCircle className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
+                Agente não encontrado
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Não foi possível encontrar o agente com ID: {id}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const eventsToShow = agent.events.slice(0, 10);
+  const conversoes = agent.leads.filter((l) => l.status === 'GANHO').length;
+  const taxaConversao = agent.leads.length > 0 ? (conversoes / agent.leads.length) * 100 : 0;
+  const receitaTotal = agent.leads
     .filter((l) => l.status === 'GANHO')
     .reduce((sum, l) => sum + l.valor_potencial, 0);
 
@@ -38,7 +119,7 @@ export default function AgentPage({ params }: PageProps) {
       case 'SDR':
         return [
           { title: 'Speed to Lead', value: `${agent.metricas_agregadas.tempo_medio_resposta || 23}s`, icon: <Clock className="h-5 w-5" /> },
-          { title: 'Leads Ativos', value: agent.metricas_agregadas.leads_ativos || leads.length, icon: <Users className="h-5 w-5" /> },
+          { title: 'Leads Ativos', value: agent.metricas_agregadas.leads_ativos || agent.leads.length, icon: <Users className="h-5 w-5" /> },
           { title: 'Disparos Hoje', value: agent.metricas_agregadas.disparos_hoje || 0, icon: <Zap className="h-5 w-5" /> },
           { title: 'Taxa de Resposta', value: `${((agent.metricas_agregadas.taxa_resposta || 0) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
         ];
@@ -65,7 +146,7 @@ export default function AgentPage({ params }: PageProps) {
         ];
       default:
         return [
-          { title: 'Leads Ativos', value: leads.length, icon: <Users className="h-5 w-5" /> },
+          { title: 'Leads Ativos', value: agent.leads.length, icon: <Users className="h-5 w-5" /> },
           { title: 'Conversões', value: conversoes, icon: <TrendingUp className="h-5 w-5" /> },
           { title: 'Taxa de Conversão', value: `${taxaConversao.toFixed(1)}%`, icon: <Zap className="h-5 w-5" /> },
           { title: 'Receita Total', value: formatCurrency(receitaTotal), icon: <DollarSign className="h-5 w-5" /> },
@@ -270,7 +351,7 @@ export default function AgentPage({ params }: PageProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {leads.slice(0, 8).map((lead) => (
+              {agent.leads.slice(0, 8).map((lead) => (
                 <div
                   key={lead.id}
                   className="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-gray-700"
@@ -302,7 +383,7 @@ export default function AgentPage({ params }: PageProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {events.map((event) => (
+              {eventsToShow.map((event) => (
                 <div
                   key={event.id}
                   className="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-gray-700"

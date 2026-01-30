@@ -22,27 +22,37 @@ function toNum(v: unknown, fallback = 0): number {
 }
 
 /**
- * Regra de status (exemplo) — ajuste para sua lógica real
+ * Regra de status baseada nos campos da tabela analise_interacoes
  */
 function inferLeadStatus(row: InteracaoRow): LeadStatus {
-    if (row.alerta) return "ESTAGNADO";
-    if (row.respondeu) return "EM_CONTATO";
+    // alerta e respondeu são TEXT na tabela, não boolean
+    const temAlerta = row.alerta && row.alerta.trim() !== '';
+    const respondeu = row.respondeu && row.respondeu.trim() !== '';
+    
+    if (temAlerta) return "ESTAGNADO";
+    if (respondeu) return "EM_CONTATO";
     return "NOVO";
 }
 
 function normalizeLead(row: InteracaoRow, agentId: string): Lead {
     const createdAt = toStr(row.created_at) ?? nowIso();
+    
+    // Calcula valor_potencial baseado em interesse_compra_futura ou usa 0
+    // Como não existe na tabela, podemos inferir de outros campos
+    const valorPotencial = row.valor_potencial 
+        ? toNum(row.valor_potencial, 0)
+        : (row.interesse_compra_futura ? 5000 : 0); // Valor padrão se houver interesse
 
     return {
         id: String(row.id),
         nome: toStr(row.nome) ?? "Sem nome",
         email: "", // Email não disponível nos dados da Ângela
-        telefone: toStr(row.whatsapp) ?? toStr(row.telefone),
-        empresa: toStr(row.empresa) ?? toStr(row.loja),
-        origem: row.origem as LeadOrigin, // Ajuste conforme sua lógica
+        whatsapp: toStr(row.whatsapp),
+        empresa: toStr(row.loja), // Usa loja já que empresa não existe na tabela
+        origem: "Outbound" as LeadOrigin, // Valor padrão já que origem não existe na tabela
         status: inferLeadStatus(row),
         agente_atual_id: agentId,
-        valor_potencial: toNum(row.valor_potencial, 0),
+        valor_potencial: valorPotencial,
         ultima_interacao: createdAt,
         created_at: createdAt,
         updated_at: createdAt,
@@ -54,8 +64,8 @@ function normalizeEvent(row: DisparoRow, agentId: string): Event {
 
     return {
         id: String(row.id),
-        tipo: row.event_type as EventType, // ajuste se quiser mapear tipos diferentes
-        lead_id: toStr(row.id_lead) ?? toStr(row.session_id) ?? "unknown",
+        tipo: "LEAD_RESPONDIDO" as EventType, // Valor padrão já que não existe na tabela
+        lead_id: toStr(row.session_id) ?? "unknown", // Usa session_id como identificador do lead
         agente_id: agentId,
         metadata: {
             nome: toStr(row.nome),
@@ -96,15 +106,17 @@ function buildAgent(
       },
       created_at: nowIso(),
       updated_at: nowIso(),
+      leads: leads,
+      events: events,
       ...overrides,
     };
   }
 
 async function fetchAngelaData(sb: SupabaseClient) {
-    // ✅ selecione só o que a UI precisa (mais rápido)
+    // ✅ selecione só os campos que existem na tabela analise_interacoes
     const { data: interacoes, error: e1 } = await sb
         .from("analise_interacoes")
-        .select("id,created_at,nome,whatsapp,telefone,loja,empresa,valor_potencial,respondeu,alerta")
+        .select("id,created_at,nome,whatsapp,loja,respondeu,alerta,interesse_compra_futura,veiculo")
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -112,7 +124,7 @@ async function fetchAngelaData(sb: SupabaseClient) {
 
     const { data: disparos, error: e2 } = await sb
         .from("follow-disparos")
-        .select("id,created_at,nome,telefone,session_id,id_lead")
+        .select("id,created_at,nome,telefone,session_id")
         .order("created_at", { ascending: false })
         .limit(10);
 

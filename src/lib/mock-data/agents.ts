@@ -20,6 +20,8 @@ export const AGENTS_DATA: Agent[] = [
     },
     created_at: '2024-01-15T10:00:00Z',
     updated_at: new Date().toISOString(),
+    leads: [],
+    events: [],
   },
   {
     id: 'agent-alice',
@@ -38,6 +40,8 @@ export const AGENTS_DATA: Agent[] = [
       disparos_mes: 2834,
       taxa_resposta: 0.42,
     },
+    leads: [],
+    events: [],
     created_at: '2024-01-15T10:00:00Z',
     updated_at: new Date().toISOString(),
   },
@@ -57,6 +61,8 @@ export const AGENTS_DATA: Agent[] = [
     },
     created_at: '2024-01-15T10:00:00Z',
     updated_at: new Date().toISOString(),
+    leads: [],
+    events: [],
   },
   {
     id: 'agent-fernanda',
@@ -67,12 +73,14 @@ export const AGENTS_DATA: Agent[] = [
     metricas_agregadas: {
       leads_ativos: 38,
       conversoes: 67,
-      tempo_medio_resposta: 180,
+      tempo_medio_resposta: 180,  
       taxa_sucesso: 0.45,
       receita_recuperada: 456000,
     },
     created_at: '2024-01-15T10:00:00Z',
     updated_at: new Date().toISOString(),
+    leads: [],
+    events: [],
   },
   {
     id: 'agent-angela',
@@ -86,9 +94,11 @@ export const AGENTS_DATA: Agent[] = [
       tempo_medio_resposta: 35,
       taxa_sucesso: 0.94,
       tickets_resolvidos: 1234,
-    },
+    },      
     created_at: '2024-01-15T10:00:00Z',
     updated_at: new Date().toISOString(),
+    leads: [],
+    events: [],
   },
   {
     id: 'agent-victor',
@@ -105,6 +115,8 @@ export const AGENTS_DATA: Agent[] = [
     },
     created_at: '2024-01-15T10:00:00Z',
     updated_at: new Date().toISOString(),
+    leads: [],
+    events: [],
   },
   {
     id: 'agent-sales-pilot',
@@ -128,6 +140,8 @@ export const AGENTS_DATA: Agent[] = [
     },
     created_at: '2024-02-01T10:00:00Z',
     updated_at: new Date().toISOString(),
+    leads: [],
+    events: [],
   },
   {
     id: 'agent-otto',
@@ -145,6 +159,8 @@ export const AGENTS_DATA: Agent[] = [
     },
     created_at: '2024-01-01T10:00:00Z',
     updated_at: new Date().toISOString(),
+    leads: [],
+    events: [],
   },
 ];
 

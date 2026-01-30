@@ -1,32 +1,32 @@
 export type AgentsConfig = {
     supabaseUrl: string;
-    serviceRoleKey: string;
+    anonKey: string;
   };
   
   const AGENTS_ACCESS: Record<string, AgentsConfig> = {
     'agent-luis': {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_LUIS ?? '',
-      serviceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_LUIS ?? '',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_LUIS ?? '',
     },
     'agent-alice': {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_ALICE ?? '',
-      serviceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_ALICE ?? '',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_ALICE ?? '',
     },
     'agent-iza': {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_IZA ?? '',
-      serviceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_IZA ?? '',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_IZA ?? '',
     },
     'agent-fernanda': {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_FERNANDA ?? '',
-      serviceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_FERNANDA ?? '',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_FERNANDA ?? '',
     },
     'agent-angela': {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_ANGELA ?? '',
-      serviceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_ANGELA ?? '',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_ANGELA ?? '',
     },
     'agent-victor': {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_VICTOR ?? '',
-      serviceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR ?? '',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR ?? '',
     },
   };
 
