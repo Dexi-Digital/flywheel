@@ -21,7 +21,7 @@ interface LeadRow {
 
 interface LeadsGridProps {
   leads: LeadRow[];
-  onLeadClick?: (leadId: string) => void;
+  onLeadClick?: (leadId: string, leadName?: string) => void;
 }
 
 export function LeadsGrid({ leads, onLeadClick }: LeadsGridProps) {
@@ -53,7 +53,7 @@ export function LeadsGrid({ leads, onLeadClick }: LeadsGridProps) {
               <tr
                 key={lead.id}
                 className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
-                onClick={() => onLeadClick?.(lead.id)}
+                onClick={() => onLeadClick?.(lead.id, lead.nome)}
               >
                 <td className="px-4 py-3">
                   <div className="font-medium">{lead.nome}</div>

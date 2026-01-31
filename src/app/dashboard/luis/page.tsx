@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { KPICards, LeadsGrid, AISessionsWidget, InteractionAnalysisWidget, RemindersWidget, WhatsAppStatusCard } from '@/components/luis';
+import { BrainDrawer } from '@/components/shared/brain-drawer';
+import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 
 interface LuisAgent {
   id: string;
@@ -84,18 +86,29 @@ export default function LuisPage() {
   const [evolutionConfig, setEvolutionConfig] = useState<EvolutionConfig | undefined>();
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
+  const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
+  const [selectedLeadName, setSelectedLeadName] = useState('');
+  
+  const { data: brainData, fetchBrainData } = useBrainDrawerData({
+    agentId: 'luis',
+    leadId: selectedLead || '',
+  });
 
   useEffect(() => {
     const fetchLuisData = async () => {
       try {
-        const res = await fetch('/api/agents/agent-luis');
+        const res = await fetch('/api/agents/luis');
         const json = await res.json();
 
-        if (json.ok && json.agent) {
-          setAgent(json.agent);
-          // Note: The service provides normalized agent data
-          // In a real scenario, you'd want to return raw data for the UI components
-          // For now, we're extracting what we can from the agent structure
+        if (json && json.leads_ativos !== undefined) {
+          setAgent({
+            id: 'luis',
+            nome: 'Luis',
+            agente_atual_id: 'luis-1',
+            leads_ativos: json.leads_ativos,
+            conversoes: json.conversoes,
+            receita_total: json.receita_total,
+          });
         }
       } catch (error) {
         console.error('Error fetching Luis data:', error);
@@ -106,6 +119,18 @@ export default function LuisPage() {
 
     fetchLuisData();
   }, []);
+
+  const handleLeadClick = (leadId: string, leadName?: string) => {
+    setSelectedLead(leadId);
+    setSelectedLeadName(leadName || '');
+    setIsBrainDrawerOpen(true);
+  };
+
+  useEffect(() => {
+    if (isBrainDrawerOpen && selectedLead) {
+      fetchBrainData();
+    }
+  }, [isBrainDrawerOpen, selectedLead, fetchBrainData]);
 
   const calculateKPIs = () => {
     const contactedCount = leads.filter(l => l.contato_realizado).length;
@@ -156,7 +181,7 @@ export default function LuisPage() {
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Leads Grid */}
-          <LeadsGrid leads={leads} onLeadClick={setSelectedLead} />
+          <LeadsGrid leads={leads} onLeadClick={handleLeadClick} />
 
           {/* Interaction Analysis */}
           {analises.length > 0 && (
@@ -180,6 +205,18 @@ export default function LuisPage() {
           <WhatsAppStatusCard config={evolutionConfig} />
         </div>
       </div>
+
+      {/* Brain Drawer */}
+      <BrainDrawer
+        isOpen={isBrainDrawerOpen}
+        onClose={() => setIsBrainDrawerOpen(false)}
+        leadId={selectedLead || ''}
+        leadName={selectedLeadName}
+        agentType="luis"
+        chatMessages={brainData.chatMessages}
+        chatSessions={brainData.chatSessions}
+        memoryData={brainData.memoryData}
+      />
 
       {/* Debug info */}
       {agent && (
