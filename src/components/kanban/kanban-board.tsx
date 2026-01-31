@@ -5,11 +5,14 @@ import { LeadWithAgent, LeadStatus } from '@/types/database.types';
 import { KanbanColumn } from './kanban-column';
 import { KanbanCard } from './kanban-card';
 
+import { AgentType } from '@/types/database.types';
+
 interface KanbanBoardProps {
   leads: LeadWithAgent[];
+  agentType?: AgentType;
 }
 
-const KANBAN_COLUMNS: { status: LeadStatus; label: string; color: string }[] = [
+const DEFAULT_COLUMNS: { status: LeadStatus; label: string; color: string }[] = [
   { status: 'NOVO', label: 'Novo', color: 'bg-blue-100 dark:bg-blue-900/20' },
   { status: 'EM_CONTATO', label: 'Em Contato', color: 'bg-yellow-100 dark:bg-yellow-900/20' },
   { status: 'QUALIFICADO', label: 'Qualificado', color: 'bg-purple-100 dark:bg-purple-900/20' },
@@ -19,7 +22,26 @@ const KANBAN_COLUMNS: { status: LeadStatus; label: string; color: string }[] = [
   { status: 'ESTAGNADO', label: 'Estagnado', color: 'bg-gray-100 dark:bg-gray-900/20' },
 ];
 
-export function KanbanBoard({ leads }: KanbanBoardProps) {
+const SALES_COLUMNS: { status: LeadStatus; label: string; color: string }[] = [
+  { status: 'NOVO', label: 'Novo', color: 'bg-blue-100 dark:bg-blue-900/20' },
+  { status: 'EM_CONTATO', label: 'Em Contato (Sessão Ativa)', color: 'bg-yellow-100 dark:bg-yellow-900/20' },
+  { status: 'QUALIFICADO', label: 'Qualificado', color: 'bg-purple-100 dark:bg-purple-900/20' },
+  { status: 'ESTAGNADO', label: 'Humano Acionado', color: 'bg-red-100 dark:bg-red-900/20' },
+];
+
+const COLLECTION_COLUMNS: { status: LeadStatus; label: string; color: string }[] = [
+  { status: 'NOVO', label: 'Em Aberto', color: 'bg-blue-100 dark:bg-blue-900/20' },
+  { status: 'NEGOCIACAO', label: 'Em Negociação', color: 'bg-yellow-100 dark:bg-yellow-900/20' },
+  { status: 'QUALIFICADO', label: 'Promessa de Pagamento', color: 'bg-purple-100 dark:bg-purple-900/20' },
+  { status: 'GANHO', label: 'Recuperado', color: 'bg-green-100 dark:bg-green-900/20' },
+];
+
+export function KanbanBoard({ leads, agentType }: KanbanBoardProps) {
+  const columns = useMemo(() => {
+    if (agentType === 'SDR' || agentType === 'BDR') return SALES_COLUMNS;
+    if (agentType === 'FINANCEIRO') return COLLECTION_COLUMNS;
+    return DEFAULT_COLUMNS;
+  }, [agentType]);
   const leadsByStatus = useMemo(() => {
     const grouped: Record<LeadStatus, LeadWithAgent[]> = {
       NOVO: [],
@@ -40,7 +62,7 @@ export function KanbanBoard({ leads }: KanbanBoardProps) {
 
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
-      {KANBAN_COLUMNS.map((column) => (
+      {columns.map((column) => (
         <KanbanColumn
           key={column.status}
           title={column.label}

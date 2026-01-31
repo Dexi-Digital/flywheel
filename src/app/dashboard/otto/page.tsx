@@ -7,11 +7,14 @@ import { Avatar } from '@/components/ui/avatar';
 import { getOttoMetrics, formatCurrency } from '@/lib/mock-data';
 import { getStagnantLeads, getLeadsByAgent, AGENTS_DATA } from '@/lib/mock-data';
 import { getEventsByType } from '@/lib/mock-data/events';
-import { Bot, AlertTriangle, CheckCircle, ArrowRightLeft, DollarSign } from 'lucide-react';
+import { TrainingModal } from '@/components/layout/training-modal';
+import { useState } from 'react';
+import { Bot, AlertTriangle, CheckCircle, ArrowRightLeft, DollarSign, GraduationCap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function OttoPage() {
+  const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const metrics = getOttoMetrics();
   const stagnantLeads = getStagnantLeads().slice(0, 10);
   const interventions = getEventsByType('INTERVENCAO_OTTO')
@@ -27,8 +30,10 @@ export default function OttoPage() {
 
   return (
     <div className="space-y-6">
+      <TrainingModal isOpen={isTrainingOpen} onClose={() => setIsTrainingOpen(false)} />
       {/* Page Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
           <Bot className="h-7 w-7" />
         </div>
@@ -40,6 +45,13 @@ export default function OttoPage() {
             Monitoramento de intervenções e recuperação de leads
           </p>
         </div>
+        <button 
+          onClick={() => setIsTrainingOpen(true)}
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          <GraduationCap className="h-4 w-4" />
+          Ação Treinar
+        </button>
       </div>
 
       {/* KPI Cards */}

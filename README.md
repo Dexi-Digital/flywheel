@@ -75,14 +75,22 @@ npm start
 
 ## Configuração Supabase (Produção)
 
-1. Crie um projeto no [Supabase](https://supabase.com)
-2. Execute as migrations em `supabase/migrations/`
-3. Execute o seed em `supabase/seed.sql`
-4. Configure as variáveis de ambiente:
+O projeto utiliza uma arquitetura multi-tenant onde cada agente pode se conectar a uma instância diferente do Supabase.
+
+1. Crie os projetos necessários no [Supabase](https://supabase.com)
+2. Execute as migrations em `supabase/migrations/` em cada instância
+3. Configure as variáveis de ambiente no seu arquivo `.env.local` seguindo o modelo do `.env.example`:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=sua-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-key
+# Exemplo para o Agente Ângela
+NEXT_PUBLIC_SUPABASE_URL_ANGELA=sua-url-da-angela
+NEXT_PUBLIC_SUPABASE_ANON_KEY_ANGELA=sua-key-da-angela
+
+# Repita para os outros agentes conforme necessário (LUIS, ALICE, IZA, FERNANDA, VICTOR)
+```
+
+4. Variáveis globais:
+```env
 NEXT_PUBLIC_DEMO_MODE=false
 ```
 

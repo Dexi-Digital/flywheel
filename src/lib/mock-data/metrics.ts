@@ -17,6 +17,9 @@ export function getDashboardMetrics(): DashboardMetrics {
     ? conversoes.reduce((sum, l) => sum + l.valor_potencial, 0) / conversoes.length 
     : 0;
 
+  const capitalSobGestao = receitaRecuperada + (LEADS_DATA.filter(l => l.status === 'QUALIFICADO').length * 120000);
+  const economiaGerada = (leadsAtivos * 10 * 1.5); // 10 min por lead * R$ 1.50/min
+
   return {
     leads_ativos: leadsAtivos,
     leads_ativos_variacao: 12.5,
@@ -28,6 +31,10 @@ export function getDashboardMetrics(): DashboardMetrics {
     ltv_medio_variacao: 5.2,
     leads_salvos_otto: leadsSalvosOtto,
     leads_salvos_otto_variacao: 15.8,
+    capital_sob_gestao: capitalSobGestao,
+    capital_sob_gestao_variacao: 14.2,
+    economia_gerada: economiaGerada,
+    economia_gerada_variacao: 9.5,
   };
 }
 

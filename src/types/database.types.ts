@@ -73,6 +73,11 @@ export interface AgentMetrics {
   receita_salva?: number;
   tempo_medio_intervencao?: number;
   ticket_medio_resgate?: number;
+  // Métricas de Governança/Visão Global
+  capital_sob_gestao?: number;
+  economia_gerada?: number;
+  trabalho_ia?: number;
+  trabalho_humano?: number;
   // Métricas específicas do Sales Pilot
   duvidas_tecnicas_resolvidas?: number;
   escalacoes_nivel2?: number;
@@ -144,6 +149,10 @@ export interface DashboardMetrics {
   ltv_medio_variacao: number;
   leads_salvos_otto: number;
   leads_salvos_otto_variacao: number;
+  capital_sob_gestao: number;
+  capital_sob_gestao_variacao: number;
+  economia_gerada: number;
+  economia_gerada_variacao: number;
 }
 
 export interface ChartDataPoint {

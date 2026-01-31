@@ -5,6 +5,8 @@ import { KPICard } from '@/components/metrics/kpi-card';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
+import { KanbanBoard } from '@/components/kanban/kanban-board';
+import { IntelligenceDrawer } from '@/components/layout/intelligence-drawer';
 import { buildService } from '@/services/factory';
 import { getAgentTypeLabel, formatCurrency, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { Clock, Users, TrendingUp, DollarSign, Zap, RefreshCcw, AlertCircle, RefreshCw } from 'lucide-react';
@@ -21,6 +23,8 @@ export default function AgentPage({ params }: PageProps) {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<any>(null);
 
   const loadAgentData = useCallback(async () => {
     try {
@@ -70,6 +74,16 @@ export default function AgentPage({ params }: PageProps) {
               <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
                 {error}
               </p>
+              {error?.includes('Configuração do Supabase ausente') && (
+                <div className="mb-6 rounded-md bg-blue-50 p-4 text-left text-xs text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+                  <p className="font-semibold">Como resolver:</p>
+                  <ul className="mt-1 list-inside list-disc space-y-1">
+                    <li>Certifique-se de que o arquivo <code>.env.local</code> existe.</li>
+                    <li>Adicione as chaves <code>NEXT_PUBLIC_SUPABASE_URL_{id.split('-')[1].toUpperCase()}</code>.</li>
+                    <li>Reinicie o servidor de desenvolvimento.</li>
+                  </ul>
+                </div>
+              )}
               <button
                 onClick={loadAgentData}
                 className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-600"
@@ -188,8 +202,14 @@ export default function AgentPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
+      <IntelligenceDrawer 
+        isOpen={isDrawerOpen} 
+        onClose={() => setIsDrawerOpen(false)} 
+        lead={selectedLead}
+      />
       {/* Agent Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
         <Avatar name={agent.nome} size="xl" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -202,6 +222,13 @@ export default function AgentPage({ params }: PageProps) {
             {agent.status}
           </Badge>
         </div>
+        <button 
+          onClick={() => setIsDrawerOpen(true)}
+          className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-blue-600 dark:hover:bg-blue-700"
+        >
+          <Zap className="h-4 w-4 fill-current" />
+          Abrir Cérebro
+        </button>
       </div>
 
       {/* Agent KPIs */}
@@ -342,6 +369,19 @@ export default function AgentPage({ params }: PageProps) {
           </Card>
         </div>
       )}
+
+      {/* Kanban Board */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Fluxo de Trabalho (Kanban)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <KanbanBoard 
+            leads={agent.leads.map(l => ({ ...l, agente: agent }))} 
+            agentType={agent.tipo}
+          />
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Recent Leads */}

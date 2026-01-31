@@ -27,6 +27,8 @@ interface BarChartProps {
   formatAsCurrency?: boolean;
   showLegend?: boolean;
   colors?: string[];
+  layout?: 'horizontal' | 'vertical';
+  stacked?: boolean;
 }
 
 export function BarChart({
@@ -38,6 +40,8 @@ export function BarChart({
   formatAsCurrency = false,
   showLegend = true,
   colors,
+  layout = 'horizontal',
+  stacked = true,
 }: BarChartProps) {
   return (
     <Card>
@@ -48,21 +52,43 @@ export function BarChart({
         <ResponsiveContainer width="100%" height={height}>
           <RechartsBarChart
             data={data}
-            margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+            layout={layout}
+            margin={{ top: 5, right: 20, left: layout === 'vertical' ? 40 : 0, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-            <XAxis
-              dataKey={xAxisKey}
-              tick={{ fontSize: 12, fill: '#6b7280' }}
-              tickLine={false}
-              axisLine={{ stroke: '#e5e7eb' }}
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: '#6b7280' }}
-              tickLine={false}
-              axisLine={{ stroke: '#e5e7eb' }}
-              tickFormatter={formatAsCurrency ? (value) => formatCurrency(value) : undefined}
-            />
+            {layout === 'horizontal' ? (
+              <>
+                <XAxis
+                  dataKey={xAxisKey}
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  tickFormatter={formatAsCurrency ? (value) => formatCurrency(value) : undefined}
+                />
+              </>
+            ) : (
+              <>
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  tickFormatter={formatAsCurrency ? (value) => formatCurrency(value) : undefined}
+                />
+                <YAxis
+                  type="category"
+                  dataKey={xAxisKey}
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                />
+              </>
+            )}
             <Tooltip
               contentStyle={{
                 backgroundColor: 'white',
@@ -86,7 +112,8 @@ export function BarChart({
                 dataKey={bar.dataKey}
                 name={bar.name}
                 fill={bar.color}
-                radius={[4, 4, 0, 0]}
+                stackId={stacked ? 'a' : undefined}
+                radius={layout === 'horizontal' ? [4, 4, 0, 0] : [0, 4, 4, 0]}
               >
                 {colors &&
                   data.map((_, i) => (

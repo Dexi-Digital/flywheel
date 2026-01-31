@@ -37,8 +37,29 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* Top Highlights (New Specification) */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <KPICard
+          title="Capital sob Gestão Agêntica"
+          value={formatCurrency(metrics.capital_sob_gestao)}
+          change={metrics.capital_sob_gestao_variacao}
+          changeLabel="Top-Line Impact"
+          icon={<DollarSign className="h-6 w-6 text-blue-600" />}
+          className="lg:col-span-2 bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30"
+          tooltip="Soma de Recuperação Ativa + Pipeline de Intenção de Compra"
+        />
+        <KPICard
+          title="Economia Gerada"
+          value={formatCurrency(metrics.economia_gerada)}
+          change={metrics.economia_gerada_variacao}
+          changeLabel="Bottom-Line Impact"
+          icon={<TrendingUp className="h-6 w-6 text-green-600" />}
+          tooltip="(Total Leads Ativos × 10 min) × Custo/Min Humano"
+        />
+      </div>
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard
           title="Leads Ativos"
           value={metrics.leads_ativos}
@@ -59,13 +80,6 @@ export default function DashboardPage() {
           change={metrics.receita_recuperada_variacao}
           changeLabel="vs. mês anterior"
           icon={<RefreshCcw className="h-5 w-5" />}
-        />
-        <KPICard
-          title="LTV Médio"
-          value={formatCurrency(metrics.ltv_medio)}
-          change={metrics.ltv_medio_variacao}
-          changeLabel="vs. mês anterior"
-          icon={<TrendingUp className="h-5 w-5" />}
         />
         <KPICard
           title="Leads Salvos pelo OTTO"
@@ -91,13 +105,28 @@ export default function DashboardPage() {
         <FunnelChart title="Funil de Conversão" data={funnelData} />
       </div>
 
-      {/* Agent Performance Chart */}
-      <div className="grid grid-cols-1">
+      {/* Digital Workforce and Agent Performance */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BarChart
-          title="Performance por Agente"
+          title="Força de Trabalho Digital (IA vs Humano)"
+          data={performanceChartData.map(a => ({
+            ...a,
+            ia: Math.floor(a.conversoes * 0.8),
+            humano: Math.floor(a.conversoes * 0.2)
+          }))}
+          xAxisKey="name"
+          bars={[
+            { dataKey: 'ia', name: 'Resolvido pela IA', color: '#0f62fe' },
+            { dataKey: 'humano', name: 'Escalado para Humano', color: '#8a3ffc' }
+          ]}
+          height={350}
+          layout="vertical"
+        />
+        <BarChart
+          title="Receita por Agente"
           data={performanceChartData}
           xAxisKey="name"
-          bars={[{ dataKey: 'receita', name: 'Receita Gerada', color: '#0f62fe' }]}
+          bars={[{ dataKey: 'receita', name: 'Receita Gerada', color: '#198038' }]}
           formatAsCurrency
           height={350}
         />
