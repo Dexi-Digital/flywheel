@@ -210,17 +210,18 @@ export default function AgentPage({ params }: PageProps) {
       {/* Agent Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-        <Avatar name={agent.nome} size="xl" />
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {agent.nome}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {getAgentTypeLabel(agent.tipo)}
-          </p>
-          <Badge variant={agent.status === 'ATIVO' ? 'success' : 'warning'} className="mt-2">
-            {agent.status}
-          </Badge>
+          <Avatar name={agent.nome} size="xl" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {agent.nome}
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {getAgentTypeLabel(agent.tipo)}
+            </p>
+            <Badge variant={agent.status === 'ATIVO' ? 'success' : 'warning'} className="mt-2">
+              {agent.status}
+            </Badge>
+          </div>
         </div>
         <button 
           onClick={() => setIsDrawerOpen(true)}
