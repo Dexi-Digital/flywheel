@@ -12,6 +12,8 @@ import {
   AlertsAndInterventionWidget,
   AgentPromptsConfig,
 } from '@/components/iza';
+import { BrainDrawer } from '@/components/shared';
+import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 
 interface IzaAgent {
   id: string;
@@ -35,17 +37,40 @@ export default function IzaPage() {
   const [prompts, setPrompts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
+  const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
+  const [selectedLeadName, setSelectedLeadName] = useState('');
+  
+  const { data: brainData, fetchBrainData } = useBrainDrawerData({
+    agentId: 'iza',
+    leadId: selectedLead || '',
+  });
+
+  const handleLeadClick = (leadId: string, leadName?: string) => {
+    setSelectedLead(leadId);
+    setSelectedLeadName(leadName || '');
+    setIsBrainDrawerOpen(true);
+  };
+
+  useEffect(() => {
+    if (isBrainDrawerOpen && selectedLead) {
+      fetchBrainData();
+    }
+  }, [isBrainDrawerOpen, selectedLead, fetchBrainData]);
 
   useEffect(() => {
     const fetchIzaData = async () => {
       try {
-        const res = await fetch('/api/agents/agent-iza');
+        const res = await fetch('/api/agents/iza');
         const json = await res.json();
 
-        if (json.ok && json.agent) {
-          setAgent(json.agent);
-          // Note: In production, you'd want to return raw data from the service
-          // for now we show the normalized agent structure
+        if (json && json.leads_ativos !== undefined) {
+          setAgent({
+            id: 'iza',
+            nome: 'Iza',
+            leads_ativos: json.leads_ativos,
+            conversoes: json.conversoes,
+            receita_total: json.receita_total,
+          });
         }
       } catch (error) {
         console.error('Error fetching Iza data:', error);
@@ -119,12 +144,12 @@ export default function IzaPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Campaign Leads Grid */}
           {leads.length > 0 && (
-            <CampaignLeadsGrid leads={leads} onLeadClick={setSelectedLead} />
+            <CampaignLeadsGrid leads={leads} onLeadClick={handleLeadClick} />
           )}
 
           {/* Event Leads Grid */}
           {leadsEvento.length > 0 && (
-            <EventLeadsGrid leads={leadsEvento} onLeadClick={setSelectedLead} />
+            <EventLeadsGrid leads={leadsEvento} onLeadClick={handleLeadClick} />
           )}
 
           {/* Follow-up Decisions */}
@@ -163,6 +188,19 @@ export default function IzaPage() {
           )}
         </div>
       </div>
+
+      {/* Brain Drawer */}
+      <BrainDrawer
+        isOpen={isBrainDrawerOpen}
+        onClose={() => setIsBrainDrawerOpen(false)}
+        leadId={selectedLead || ''}
+        leadName={selectedLeadName}
+        agentType="iza"
+        chatMessages={brainData.chatMessages}
+        chatSessions={brainData.chatSessions}
+        internalReasoning={brainData.internalReasoning}
+        memoryData={brainData.memoryData}
+      />
 
       {/* Debug info */}
       {agent && (

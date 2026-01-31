@@ -18,7 +18,7 @@ interface ChatSession {
   last_message_at?: string;
 }
 
-interface BrainDrawerProps {
+export interface BrainDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   leadId: string;

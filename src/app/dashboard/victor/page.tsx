@@ -11,6 +11,8 @@ import {
   OptOutWidget,
   PaymentProofWidget,
 } from '@/components/victor';
+import { BrainDrawer } from '@/components/shared';
+import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 
 interface VictorAgent {
   id: string;
@@ -33,15 +35,41 @@ export default function VictorPage() {
   const [comprovantes, setComprovantes] = useState<any[]>([]);
   const [pix, setPix] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLead, setSelectedLead] = useState<string | null>(null);
+  const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
+  const [selectedLeadName, setSelectedLeadName] = useState('');
+  
+  const { data: brainData, fetchBrainData } = useBrainDrawerData({
+    agentId: 'victor',
+    leadId: selectedLead || '',
+  });
+
+  const handleLeadClick = (leadId: string, leadName?: string) => {
+    setSelectedLead(leadId);
+    setSelectedLeadName(leadName || '');
+    setIsBrainDrawerOpen(true);
+  };
+
+  useEffect(() => {
+    if (isBrainDrawerOpen && selectedLead) {
+      fetchBrainData();
+    }
+  }, [isBrainDrawerOpen, selectedLead, fetchBrainData]);
 
   useEffect(() => {
     const fetchVictorData = async () => {
       try {
-        const res = await fetch('/api/agents/agent-victor');
+        const res = await fetch('/api/agents/victor');
         const json = await res.json();
 
-        if (json.ok && json.agent) {
-          setAgent(json.agent);
+        if (json && json.leads_ativos !== undefined) {
+          setAgent({
+            id: 'victor',
+            nome: 'Victor',
+            leads_ativos: json.leads_ativos,
+            conversoes: json.conversoes,
+            receita_total: json.receita_total,
+          });
         }
       } catch (error) {
         console.error('Error fetching Victor data:', error);
@@ -134,6 +162,19 @@ export default function VictorPage() {
           <PaymentProofWidget comprovantes={comprovantes} pix={pix} />
         </div>
       </div>
+
+      {/* Brain Drawer */}
+      <BrainDrawer
+        isOpen={isBrainDrawerOpen}
+        onClose={() => setIsBrainDrawerOpen(false)}
+        leadId={selectedLead || ''}
+        leadName={selectedLeadName}
+        agentType="victor"
+        chatMessages={brainData.chatMessages}
+        chatSessions={brainData.chatSessions}
+        renegociacao={brainData.renegociacao}
+        memoryData={brainData.memoryData}
+      />
 
       {/* Debug info */}
       {agent && (
