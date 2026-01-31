@@ -90,6 +90,7 @@ export interface Lead {
   nome: string;
   email: string;
   whatsapp?: string;
+  telefone?: string | null;
   empresa?: string;
   origem: LeadOrigin;
   status: LeadStatus;
