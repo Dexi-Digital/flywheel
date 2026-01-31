@@ -10,15 +10,44 @@ function toStr(v: unknown): string | undefined {
   return String(v);
 }
 
-async function fetchLuis(sb: SupabaseClient) {
-  const { data, error } = await sb
-    .from('leads_crm')
+async function fetchLuisData(sb: SupabaseClient) {
+  // Leads CRM (base principal)
+  const leadsPromise = sb
+    .from('Leads CRM')
     .select('id,created_at,nome,email,telefone,origem,status,ultima_interacao,valor_potencial')
     .order('created_at', { ascending: false })
     .limit(50);
 
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as Record<string, any>[];
+  // AI Chat Sessions
+  const sessionsPromise = sb
+    .from('ai_chat_sessions')
+    .select('id,lead_id,session_id,created_at,status,last_message_at')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  // Análise de interações IA
+  const analisesPromise = sb
+    .from('analise_interacoes_ia')
+    .select('id,created_at,session_id,sentimento,problema,sugestao')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  // Aguardar todas em paralelo
+  const [leadsRes, sessionsRes, analisesRes] = await Promise.all([
+    leadsPromise,
+    sessionsPromise,
+    analisesPromise,
+  ]);
+
+  if (leadsRes.error) throw new Error(`Leads CRM: ${leadsRes.error.message}`);
+  if (sessionsRes.error) console.warn(`ai_chat_sessions (non-critical): ${sessionsRes.error.message}`);
+  if (analisesRes.error) console.warn(`analise_interacoes_ia (non-critical): ${analisesRes.error.message}`);
+
+  return {
+    leads: (leadsRes.data ?? []) as Record<string, any>[],
+    sessions: (sessionsRes.data ?? []) as Record<string, any>[],
+    analises: (analisesRes.data ?? []) as Record<string, any>[],
+  };
 }
 
 function normalizeLead(row: Record<string, any>, agentId: string): Lead {
@@ -48,9 +77,13 @@ export const luisService: AgentService = {
     const cfg = getTenantConfig(agentId);
     const sb = getBrowserTenantClient(agentId, cfg);
 
-    const rows = await fetchLuis(sb);
-    const leads = rows.map((r) => normalizeLead(r, agentId));
+    const data = await fetchLuisData(sb);
+
+    const leads = data.leads.map((r) => normalizeLead(r, agentId));
     const events: Event[] = [];
+
+    // Log summary
+    console.log(`[Luis] Leads: ${leads.length}, Sessions: ${data.sessions.length}, Analises: ${data.analises.length}`);
 
     return buildAgentCommon(agentId, 'Luís', leads, events);
   },

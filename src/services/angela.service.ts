@@ -89,7 +89,7 @@ async function fetchAngelaData(sb: SupabaseClient) {
     if (e1) throw new Error(e1.message);
 
     const { data: disparos, error: e2 } = await sb
-        .from("follow-disparos")
+        .from("follow_disparos")
         .select("id,created_at,nome,telefone,session_id")
         .order("created_at", { ascending: false })
         .limit(10);

@@ -10,15 +10,44 @@ function toStr(v: unknown): string | undefined {
   return String(v);
 }
 
-async function fetchIza(sb: SupabaseClient) {
-  const { data, error } = await sb
+async function fetchIzaData(sb: SupabaseClient) {
+  // Leads (base principal)
+  const leadsPromise = sb
     .from('leads')
     .select('id,created_at,nome,email,telefone,origem,status,ultima_interacao,valor_potencial')
     .order('created_at', { ascending: false })
     .limit(50);
 
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as Record<string, any>[];
+  // FollowUp_Control (cadências/decisões autônomas)
+  const followupPromise = sb
+    .from('FollowUp_Control')
+    .select('id,created_at,lead_id,decisao_IA,success,scheduled_for')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  // Curadoria (erros)
+  const curadoriaPromise = sb
+    .from('curadoria')
+    .select('id,created_at,sessionId,message_user,message_ai,internal_reasoning')
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  // Aguardar todas em paralelo
+  const [leadsRes, followupRes, curadoriaRes] = await Promise.all([
+    leadsPromise,
+    followupPromise,
+    curadoriaPromise,
+  ]);
+
+  if (leadsRes.error) throw new Error(`leads: ${leadsRes.error.message}`);
+  if (followupRes.error) console.warn(`FollowUp_Control (non-critical): ${followupRes.error.message}`);
+  if (curadoriaRes.error) console.warn(`curadoria (non-critical): ${curadoriaRes.error.message}`);
+
+  return {
+    leads: (leadsRes.data ?? []) as Record<string, any>[],
+    followup: (followupRes.data ?? []) as Record<string, any>[],
+    curadoria: (curadoriaRes.data ?? []) as Record<string, any>[],
+  };
 }
 
 function normalizeLead(row: Record<string, any>, agentId: string): Lead {
@@ -48,9 +77,13 @@ export const izaService: AgentService = {
     const cfg = getTenantConfig(agentId);
     const sb = getBrowserTenantClient(agentId, cfg);
 
-    const rows = await fetchIza(sb);
-    const leads = rows.map((r) => normalizeLead(r, agentId));
+    const data = await fetchIzaData(sb);
+
+    const leads = data.leads.map((r) => normalizeLead(r, agentId));
     const events: Event[] = [];
+
+    // Log summary
+    console.log(`[Iza] Leads: ${leads.length}, FollowUp: ${data.followup.length}, Curadoria: ${data.curadoria.length}`);
 
     return buildAgentCommon(agentId, 'Iza', leads, events);
   },
