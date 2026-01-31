@@ -76,41 +76,7 @@ function normalizeEvent(row: DisparoRow, agentId: string): Event {
     };
 }
 
-function buildAgent(
-    agentId: string,
-    leads: Lead[],
-    events: Event[],
-    overrides?: Partial<Agent>
-  ): Agent {
-    const leadsAtivos = leads.length;
-    const conversoes = leads.filter((l) => l.status === "GANHO").length;
-  
-    const taxaConversao = leadsAtivos > 0 ? conversoes / leadsAtivos : 0; // 0..1
-  
-    const receitaTotal = leads
-      .filter((l) => l.status === "GANHO")
-      .reduce((sum, l) => sum + (l.valor_potencial ?? 0), 0);
-  
-    return {
-      id: agentId,
-      nome: "Ângela",
-      tipo: "SDR" as AgentType,
-      status: "ATIVO" as AgentStatus,
-      avatar_url: undefined,
-      metricas_agregadas: {
-        leads_ativos: leadsAtivos,
-        conversoes,
-        taxa_conversao: taxaConversao, // UI: (taxa_conversao * 100).toFixed(1) + '%'
-        receita_total: receitaTotal,   // UI: formatCurrency(receita_total)
-        disparos_hoje: events.length,
-      },
-      created_at: nowIso(),
-      updated_at: nowIso(),
-      leads: leads,
-      events: events,
-      ...overrides,
-    };
-  }
+import { buildAgentCommon } from './common';
 
 async function fetchAngelaData(sb: SupabaseClient) {
     // ✅ selecione só os campos que existem na tabela analise_interacoes
@@ -147,7 +113,7 @@ export const angelaService: AgentService = {
 
         const leads = interacoes.map((row) => normalizeLead(row, agentId));
         const events = disparos.map((row) => normalizeEvent(row, agentId));
-        const agent = buildAgent(agentId, leads, events);
+        const agent = buildAgentCommon(agentId, 'Ângela', leads, events);
 
         return agent;
     }
