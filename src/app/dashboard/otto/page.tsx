@@ -34,16 +34,17 @@ export default function OttoPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
-          <Bot className="h-7 w-7" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            OTTO Governance
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Monitoramento de intervenções e recuperação de leads
-          </p>
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
+            <Bot className="h-7 w-7" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              OTTO Governance
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Monitoramento de intervenções e recuperação de leads
+            </p>
+          </div>
         </div>
         <button 
           onClick={() => setIsTrainingOpen(true)}
