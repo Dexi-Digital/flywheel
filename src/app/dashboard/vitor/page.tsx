@@ -307,10 +307,15 @@ export default function VictorPage() {
                     axisLine={{ stroke: '#e5e7eb' }}
                   />
                   <YAxis
-                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
                     tickLine={false}
                     axisLine={{ stroke: '#e5e7eb' }}
-                    tickFormatter={(value) => formatCurrency(value)}
+                    width={90}
+                    tickFormatter={(value) => {
+                      if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
+                      if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}K`;
+                      return formatCurrency(value);
+                    }}
                   />
                   <Tooltip
                     contentStyle={{
