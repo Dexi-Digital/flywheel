@@ -37,11 +37,23 @@ let cachedData: KanbanApiResponse | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 60 * 1000; // 60 segundos
 
-// Endpoint alternativo: usar RPC direto que retorna lista de clientes com `status_kanban`
+// Endpoint: RPC do projeto TGV/Vitor (get_kanban_status)
 const KANBAN_ENDPOINT = 'https://wwiwuorpmltzutzisgin.supabase.co/rest/v1/rpc/get_kanban_status';
 
 /**
- * Busca dados do Kanban via Edge Function
+ * Chave anon do projeto do Vitor (TGV). O Kanban usa esse projeto.
+ * Fallback para NEXT_PUBLIC_SUPABASE_ANON_KEY se não houver variável específica.
+ */
+function getKanbanAnonKey(): string {
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    '';
+  return key;
+}
+
+/**
+ * Busca dados do Kanban via RPC do Supabase (projeto Vitor/TGV)
  * Com cache de 60s e retry em caso de erro 5xx
  */
 export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiResponse> {
@@ -52,13 +64,16 @@ export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiRe
     return cachedData;
   }
 
-  const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  
+  const anonKey = getKanbanAnonKey();
+  if (!anonKey) {
+    console.error('[KanbanAPI] NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR (ou NEXT_PUBLIC_SUPABASE_ANON_KEY) não definida.');
+  }
+
   const doFetch = async (): Promise<Response> => {
     return fetch(KANBAN_ENDPOINT, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${serviceKey}`,
+        'Authorization': `Bearer ${anonKey}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
@@ -82,7 +97,9 @@ export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiRe
 
   // Tratar erros de autenticação
   if (response.status === 401 || response.status === 403) {
-    throw new Error('Erro de autenticação. Verifique a configuração da SERVICE_ROLE_KEY.');
+    throw new Error(
+      'Erro de autenticação no Kanban. Verifique se NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR está definida no ambiente (ex.: Vercel).'
+    );
   }
 
   if (!response.ok) {
