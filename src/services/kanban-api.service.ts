@@ -76,6 +76,7 @@ export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiRe
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey, // Supabase Edge Functions também requerem apikey header
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
