@@ -191,15 +191,95 @@ export const victorService: AgentService = {
 
     const data = await fetchVictorData(sb);
 
+    // MÉTRICAS ESPECÍFICAS DO VICTOR (Agente de Recuperação de Receita TGV)
+
+    // 1. Carteira ativa (contratos em gestão)
+    const contratos_ativos = data.renegociacao.length;
+
+    // 2. Parcelas em atraso (crítico: >90 dias = devolução de lote)
+    const parcelas_em_atraso = data.parcelas.filter(p =>
+      p.dias_em_atraso && Number(p.dias_em_atraso) > 0
+    ).length;
+    const parcelas_criticas = data.parcelas.filter(p =>
+      p.dias_em_atraso && Number(p.dias_em_atraso) >= 90
+    ).length;
+
+    // 3. Valor total em risco (soma das parcelas atrasadas)
+    const valor_em_risco = data.parcelas
+      .filter(p => p.dias_em_atraso && Number(p.dias_em_atraso) > 0)
+      .reduce((sum, p) => sum + (Number(p.valor_parcela) || 0), 0);
+
+    // 4. Taxa de automação (mensagens enviadas vs intervenções humanas)
+    const mensagens_enviadas = data.mensagens.filter(m => m.direcao === 'ENVIADA').length;
+    const mensagens_recebidas = data.mensagens.filter(m => m.direcao === 'RECEBIDA').length;
+    const taxa_resposta = mensagens_enviadas > 0 ?
+      (mensagens_recebidas / mensagens_enviadas) * 100 : 0;
+
+    // 5. Renegociações ativas (handoff para humano)
+    const renegociacoes_ativas = data.renegociacao.filter(r => r.ativo === true).length;
+
+    // 6. Comprovantes recebidos (pagamentos em validação)
+    const comprovantes_recebidos = data.comprovantes.length;
+
+    // 7. Opt-outs (clientes que solicitaram parar comunicação)
+    const opt_outs = data.optOut.length;
+
+    // 8. WhatsApp inválidos (números que não existem)
+    const whatsapp_invalidos = data.whatsappInexistente.length;
+
+    // 9. Disparos realizados hoje
+    const hoje = new Date().toISOString().split('T')[0];
+    const disparos_hoje = data.disparo.filter(d =>
+      d.dateTime_disparo && d.dateTime_disparo.startsWith(hoje)
+    ).length;
+
+    // 10. Conversas ativas (memória de sessão)
+    const conversas_ativas = data.memoria.length;
+
+    // Normalizar leads da base de acompanhamento
     const leads = data.acompanhamento.map((r) => normalizeLead(r, agentId));
-    const events: Event[] = [];
+
+    // Criar eventos de renegociação
+    const events: Event[] = data.renegociacao.map((r) => ({
+      id: String(r.id),
+      tipo: 'LEAD_TRANSBORDADO' as const,
+      lead_id: String(r.id_cliente),
+      agente_id: agentId,
+      metadata: {
+        motivo: 'Renegociação solicitada',
+        loteamento: r.loteamento,
+        descricao_contrato: r.descricao_contrato,
+        dias_em_debito: r.dias_em_debito,
+        vencimento: r.vencimento,
+      },
+      timestamp: r.aberta_em || new Date().toISOString(),
+    }));
 
     // Log summary
-    console.log(`[Victor] Leads: ${leads.length}, Parcelas: ${data.parcelas.length}, Renegociacao: ${data.renegociacao.length}, ` +
-      `Disparo: ${data.disparo.length}, Mensagens: ${data.mensagens.length}, BufferMsg: ${data.bufferMessage.length}, ` +
-      `OptOut: ${data.optOut.length}, WhatsAppInex: ${data.whatsappInexistente.length}, ` +
-      `Memoria: ${data.memoria.length}, N8N: ${data.n8nHistories.length}, Comprovantes: ${data.comprovantes.length}`);
+    console.log(`[Victor TGV] Contratos: ${contratos_ativos}, Parcelas Atraso: ${parcelas_em_atraso} (${parcelas_criticas} críticas), ` +
+      `Valor Risco: R$ ${valor_em_risco.toLocaleString('pt-BR')}, Taxa Resposta: ${taxa_resposta.toFixed(1)}%, ` +
+      `Renegociações: ${renegociacoes_ativas}, Mensagens: ${data.mensagens.length}`);
 
-    return buildAgentCommon(agentId, 'Victor', leads, events);
+    return buildAgentCommon(agentId, 'Victor', leads, events, {
+      tipo: 'FINANCEIRO',
+      metricas_agregadas: {
+        leads_ativos: contratos_ativos,
+        conversoes: comprovantes_recebidos,
+        receita_total: valor_em_risco,
+        disparos_hoje: disparos_hoje,
+        contratos_ativos: contratos_ativos,
+        parcelas_em_atraso: parcelas_em_atraso,
+        parcelas_criticas: parcelas_criticas,
+        valor_em_risco: valor_em_risco,
+        taxa_resposta: taxa_resposta,
+        renegociacoes_ativas: renegociacoes_ativas,
+        comprovantes_recebidos: comprovantes_recebidos,
+        opt_outs: opt_outs,
+        whatsapp_invalidos: whatsapp_invalidos,
+        conversas_ativas: conversas_ativas,
+        mensagens_enviadas: mensagens_enviadas,
+        mensagens_recebidas: mensagens_recebidas,
+      },
+    });
   },
 };
