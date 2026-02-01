@@ -107,6 +107,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 5) Atividade Recente (últimos 100 eventos combinados)
+-- Usa aliases de tabela e cast explícito para text
 CREATE OR REPLACE FUNCTION get_atividade_recente()
 RETURNS TABLE (
   tipo text,
@@ -120,33 +121,33 @@ BEGIN
   RETURN QUERY
   SELECT
     'mensagem'::text AS tipo,
-    id::text AS evento_id,
+    m.id::text AS evento_id,
     NULL::text AS id_cliente,
-    mensagem::text AS conteudo,
-    created_at AS data_hora,
-    direcao AS meta
-  FROM tgv_mensagem
-  WHERE created_at IS NOT NULL
+    m.mensagem::text AS conteudo,
+    m.created_at AS data_hora,
+    m.direcao::text AS meta
+  FROM tgv_mensagem m
+  WHERE m.created_at IS NOT NULL
   UNION ALL
   SELECT
     'disparo'::text AS tipo,
-    id::text AS evento_id,
-    id_cliente,
+    d.id::text AS evento_id,
+    d.id_cliente::text,
     NULL::text AS conteudo,
-    created_at AS data_hora,
-    (CASE WHEN disparo_realizado THEN 'REALIZADO' ELSE 'NAO_REALIZADO' END) AS meta
-  FROM controle_disparo
-  WHERE created_at IS NOT NULL
+    d.created_at AS data_hora,
+    (CASE WHEN d.disparo_realizado THEN 'REALIZADO' ELSE 'NAO_REALIZADO' END)::text AS meta
+  FROM controle_disparo d
+  WHERE d.created_at IS NOT NULL
   UNION ALL
   SELECT
     'lead'::text AS tipo,
-    id::text AS evento_id,
-    id_cliente,
-    nome_cliente AS conteudo,
-    created_at AS data_hora,
+    a.id::text AS evento_id,
+    a.id_cliente::text,
+    a.nome_cliente::text AS conteudo,
+    a.created_at AS data_hora,
     NULL::text AS meta
-  FROM acompanhamento_leads
-  WHERE created_at IS NOT NULL
+  FROM acompanhamento_leads a
+  WHERE a.created_at IS NOT NULL
   ORDER BY data_hora DESC
   LIMIT 100;
 END;
