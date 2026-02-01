@@ -106,9 +106,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 5) Atividade Recente (últimos 100 eventos combinados)
+-- 5) Atividade Recente (últimos N dias, padrão 10)
 -- Usa aliases de tabela e cast explícito para text
-CREATE OR REPLACE FUNCTION get_atividade_recente()
+-- Parâmetro: dias_atras (integer) - quantos dias para trás buscar
+CREATE OR REPLACE FUNCTION get_atividade_recente(dias_atras integer DEFAULT 10)
 RETURNS TABLE (
   tipo text,
   evento_id text,
@@ -117,7 +118,11 @@ RETURNS TABLE (
   data_hora timestamp with time zone,
   meta text
 ) AS $$
+DECLARE
+  data_limite timestamp with time zone;
 BEGIN
+  data_limite := NOW() - (dias_atras || ' days')::interval;
+
   RETURN QUERY
   SELECT
     'mensagem'::text AS tipo,
@@ -128,6 +133,7 @@ BEGIN
     m.direcao::text AS meta
   FROM tgv_mensagem m
   WHERE m.created_at IS NOT NULL
+    AND m.created_at >= data_limite
   UNION ALL
   SELECT
     'disparo'::text AS tipo,
@@ -138,6 +144,7 @@ BEGIN
     (CASE WHEN d.disparo_realizado THEN 'REALIZADO' ELSE 'NAO_REALIZADO' END)::text AS meta
   FROM controle_disparo d
   WHERE d.created_at IS NOT NULL
+    AND d.created_at >= data_limite
   UNION ALL
   SELECT
     'lead'::text AS tipo,
@@ -148,6 +155,7 @@ BEGIN
     NULL::text AS meta
   FROM acompanhamento_leads a
   WHERE a.created_at IS NOT NULL
+    AND a.created_at >= data_limite
   ORDER BY data_hora DESC
   LIMIT 100;
 END;

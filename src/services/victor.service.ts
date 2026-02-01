@@ -289,15 +289,26 @@ export const victorService: AgentService = {
       '| Valor total:', valor_total_em_negociacao);
     const clientes_em_aberto = Number(kanban_counts['Em Aberto'] || 0);
 
-    // 4. ATIVIDADE RECENTE (últimos 100 eventos combinados)
+    // 4. ATIVIDADE RECENTE (últimos 10 dias, fallback para 30 dias se vazio)
     let atividades_recentes: any[] = [];
     try {
-      // PostgREST exige body; função sem parâmetros usa {}.
-      const atividadeRes = await sb.rpc('get_atividade_recente', {});
-      if (atividadeRes.error) {
-        console.warn('[VICTOR DEBUG] Atividade Recente RPC error:', atividadeRes.error);
+      // Primeiro tenta buscar últimos 10 dias
+      const atividadeRes10 = await sb.rpc('get_atividade_recente', { dias_atras: 10 });
+      if (atividadeRes10.error) {
+        console.warn('[VICTOR DEBUG] Atividade Recente RPC (10 dias) error:', atividadeRes10.error);
       } else {
-        atividades_recentes = atividadeRes.data || [];
+        atividades_recentes = atividadeRes10.data || [];
+      }
+
+      // Se não houver atividades nos últimos 10 dias, expande para 30 dias
+      if (atividades_recentes.length === 0) {
+        console.log('[VICTOR DEBUG] Nenhuma atividade nos últimos 10 dias, expandindo para 30 dias...');
+        const atividadeRes30 = await sb.rpc('get_atividade_recente', { dias_atras: 30 });
+        if (atividadeRes30.error) {
+          console.warn('[VICTOR DEBUG] Atividade Recente RPC (30 dias) error:', atividadeRes30.error);
+        } else {
+          atividades_recentes = atividadeRes30.data || [];
+        }
       }
     } catch (e) {
       console.warn('[VICTOR DEBUG] Atividade Recente RPC exception:', e);
