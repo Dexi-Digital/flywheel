@@ -10,7 +10,7 @@ export const buildService = (agentId: string): AgentService => {
     switch (agentId) {
         case "agent-angela":
             return angelaService;
-        case "agent-victor":
+        case "agent-vitor":
             return victorService;
         case "agent-fernanda":
             return fernandaService;

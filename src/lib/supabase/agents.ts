@@ -30,7 +30,7 @@ export type AgentsConfig = {
       anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_ANGELA ?? '',
       context: 'devforaiagents',
     },
-    'agent-victor': {
+    'agent-vitor': {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_VICTOR ?? '',
       anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR ?? '',
       context: 'tgvempreendimentos',

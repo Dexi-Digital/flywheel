@@ -204,7 +204,7 @@ function normalizeLead(row: Record<string, any>, agentId: string): Lead {
 }
 
 export const victorService: AgentService = {
-  id: 'agent-victor',
+  id: 'agent-vitor',
 
   async getAgent(agentId: string) {
     const cfg = getTenantConfig(agentId);
@@ -400,7 +400,7 @@ export const victorService: AgentService = {
     }));
 
     // Log summary
-    console.log(`[Victor TGV] Receita Recuperada: R$ ${receita_recuperada_total.toLocaleString('pt-BR')}, ` +
+    console.log(`[Vitor TGV] Receita Recuperada: R$ ${receita_recuperada_total.toLocaleString('pt-BR')}, ` +
       `Tempo Médio: ${tempo_medio_resolucao_horas.toFixed(1)}h, ` +
       `Kanban: ${clientes_recuperados} recuperados, ${clientes_promessa} promessas, ${clientes_em_negociacao} negociação, ${clientes_em_aberto} aberto, ` +
       `Parcelas Atraso: ${parcelas_em_atraso} (${parcelas_criticas} críticas), ` +
@@ -449,13 +449,13 @@ export const victorService: AgentService = {
         conversas_ativas: conversas_ativas,
       };
 
-    console.log('[VICTOR DEBUG] Métricas finais sendo retornadas:', {
+    console.log('[VITOR DEBUG] Métricas finais sendo retornadas:', {
       tempo_medio_horas: metricas.tempo_medio_horas,
       receita_recuperada_total: metricas.receita_recuperada_total,
       clientes_recuperados: metricas.clientes_recuperados,
     });
 
-    return buildAgentCommon(agentId, 'Victor', leads, events, {
+    return buildAgentCommon(agentId, 'Vitor', leads, events, {
       tipo: 'FINANCEIRO',
       metricas_agregadas: metricas,
     });

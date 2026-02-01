@@ -37,7 +37,45 @@ export function Sidebar() {
     async function loadAgents() {
       try {
         const allAgents = await getAllAgents();
-        setAgents(allAgents.filter((a) => a.tipo !== 'GOVERNANCA'));
+        // Ensure required agents are present and sort alphabetically.
+        const required = [
+          { id: 'agent-luis', nome: 'Luis' },
+          { id: 'agent-angela', nome: 'Angela' },
+          { id: 'agent-alice', nome: 'Alice' },
+          { id: 'agent-fernanda', nome: 'Fernanda' },
+          { id: 'agent-iza', nome: 'Iza' },
+          { id: 'agent-vitor', nome: 'Vitor' },
+        ];
+
+        const filtered = allAgents.filter((a) => a.tipo !== 'GOVERNANCA');
+
+        const map = new Map<string, Agent>();
+        filtered.forEach(a => map.set(a.id, a));
+
+        // Merge required agents (do not overwrite fetched data if exists)
+        required.forEach(r => {
+          if (!map.has(r.id)) {
+            map.set(r.id, {
+              id: r.id,
+              nome: r.nome,
+              tipo: 'PILOT' as any,
+              status: 'ATIVO' as any,
+              avatar_url: undefined,
+              metricas_agregadas: {},
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              leads: [],
+              events: [],
+            } as Agent);
+          }
+        });
+
+        // Create array and sort by name (pt-BR)
+        const merged = Array.from(map.values()).sort((x, y) =>
+          (x.nome || '').localeCompare(y.nome || '', 'pt-BR')
+        );
+
+        setAgents(merged);
       } catch (error) {
         console.error('Error loading agents:', error);
       }

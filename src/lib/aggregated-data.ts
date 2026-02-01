@@ -68,7 +68,7 @@ async function fetchAllAgents(): Promise<Agent[]> {
     'agent-luis',
     'agent-alice',
     'agent-fernanda',
-    'agent-victor',
+    'agent-vitor',
     'agent-iza',
   ];
 
