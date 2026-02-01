@@ -37,8 +37,11 @@ let cachedData: KanbanApiResponse | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 60 * 1000; // 60 segundos
 
-// Endpoint: RPC do projeto TGV/Vitor (get_kanban_status_json)
-const KANBAN_ENDPOINT = 'https://wwiwuorpmltzutzisgin.supabase.co/rest/v1/rpc/get_kanban_status_json';
+// Endpoint: RPC do projeto TGV/Vitor (get_kanban_status_json_with_meta)
+const KANBAN_ENDPOINT = 'https://wwiwuorpmltzutzisgin.supabase.co/rest/v1/rpc/get_kanban_status_json_with_meta';
+
+// Status garantidos (mesmo se vazios)
+const STATUSES: KanbanStage[] = ['Recuperado', 'Promessa de Pagamento', 'Em Negociacao', 'Em Aberto'];
 
 /**
  * Chave anon do projeto do Vitor (TGV). O Kanban usa esse projeto.
@@ -113,8 +116,23 @@ export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiRe
 
   let data: KanbanApiResponse;
   try {
-    // O endpoint retorna { kanban: { status: [{f1, f2, f3}] }, meta: { status: {count, total_recuperado} } }
-    const raw = await response.json();
+    // Supabase RPC pode retornar diferentes formatos:
+    // 1. { kanban: {...}, meta: {...} } direto
+    // 2. { kanban_json: { kanban: {...}, meta: {...} } }
+    // 3. [{ kanban_json: {...} }] (array)
+    const rawResponse = await response.json();
+
+    // Normalizar resposta para extrair o objeto principal
+    let raw: any;
+    if (Array.isArray(rawResponse) && rawResponse[0]?.kanban_json) {
+      raw = rawResponse[0].kanban_json;
+    } else if (rawResponse?.kanban_json) {
+      raw = rawResponse.kanban_json;
+    } else {
+      raw = rawResponse;
+    }
+
+    console.log('[KanbanAPI] Raw data keys:', Object.keys(raw || {}));
 
     // Função para mapear f1/f2/f3 para id_cliente/nome_cliente/valor_recuperado
     const mapItems = (items: Array<{ f1: string; f2: string | null; f3: number }> | undefined): KanbanClient[] => {
@@ -128,27 +146,38 @@ export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiRe
 
     // Extrair meta de cada status
     const getMeta = (status: string): KanbanMeta => {
-      const m = raw.meta?.[status];
+      const m = raw?.meta?.[status];
       return {
-        count: m?.count ?? 0,
+        count: Number(m?.count ?? 0),
         total_recuperado: Number(m?.total_recuperado ?? 0),
       };
     };
 
+    // Construir resposta garantindo todas as colunas
+    const kanban: Record<string, KanbanClient[]> = {};
+    const meta: Record<string, KanbanMeta> = {};
+
+    for (const status of STATUSES) {
+      kanban[status] = mapItems(raw?.kanban?.[status]);
+      meta[status] = getMeta(status);
+    }
+
+    // Incluir outros status que possam vir do banco
+    if (raw?.kanban) {
+      for (const status of Object.keys(raw.kanban)) {
+        if (!STATUSES.includes(status as KanbanStage)) {
+          kanban[status] = mapItems(raw.kanban[status]);
+          meta[status] = getMeta(status);
+        }
+      }
+    }
+
     data = {
-      kanban: {
-        'Recuperado': mapItems(raw.kanban?.['Recuperado']),
-        'Promessa de Pagamento': mapItems(raw.kanban?.['Promessa de Pagamento']),
-        'Em Negociacao': mapItems(raw.kanban?.['Em Negociacao']),
-        'Em Aberto': mapItems(raw.kanban?.['Em Aberto']),
-      },
-      meta: {
-        'Recuperado': getMeta('Recuperado'),
-        'Promessa de Pagamento': getMeta('Promessa de Pagamento'),
-        'Em Negociacao': getMeta('Em Negociacao'),
-        'Em Aberto': getMeta('Em Aberto'),
-      },
+      kanban: kanban as KanbanApiResponse['kanban'],
+      meta: meta as KanbanApiResponse['meta'],
     };
+
+    console.log('[KanbanAPI] Parsed counts:', Object.entries(meta).map(([k, v]) => `${k}: ${v.count}`).join(', '));
   } catch (err) {
     console.error('[KanbanAPI] Resposta inválida/parsing error:', err);
     // Fallback vazio
