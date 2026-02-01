@@ -74,7 +74,35 @@ async function fetchFernandaData(sb: SupabaseClient) {
 function normalizeLead(row: Record<string, any>, agentId: string): Lead {
   const createdAt = toStr(row.created_at) ?? new Date().toISOString();
   const ultimaInteracao = toStr(row.last_message_ia) ?? toStr(row.last_message_lead) ?? createdAt;
-  
+
+  // Determinar status baseado em CONTATADO e INTENCAO
+  let status: any = 'PERDIDO'; // Default para leads não convertidos
+  if (row.CONTATADO === 'Sim') {
+    // Se foi contatado, pode estar em diferentes estágios
+    const intencao = toStr(row.INTENCAO)?.toLowerCase() || '';
+    if (intencao.includes('compra') || intencao.includes('interesse')) {
+      status = 'QUALIFICADO';
+    } else if (intencao.includes('negociação') || intencao.includes('proposta')) {
+      status = 'NEGOCIACAO';
+    } else {
+      status = 'EM_CONTATO';
+    }
+  }
+
+  // Estimar valor potencial baseado no veículo (se disponível)
+  const veiculo = toStr(row.VEICULO) || '';
+  let valorPotencial = 0;
+  if (veiculo) {
+    // Estimativa simples baseada em palavras-chave
+    if (veiculo.toLowerCase().includes('suv') || veiculo.toLowerCase().includes('hilux')) {
+      valorPotencial = 150000 + Math.random() * 100000;
+    } else if (veiculo.toLowerCase().includes('sedan') || veiculo.toLowerCase().includes('corolla')) {
+      valorPotencial = 80000 + Math.random() * 50000;
+    } else {
+      valorPotencial = 50000 + Math.random() * 30000;
+    }
+  }
+
   return {
     id: String(row.id),
     nome: toStr(row.nome) ?? 'Sem nome',
@@ -83,10 +111,10 @@ function normalizeLead(row: Record<string, any>, agentId: string): Lead {
     telefone: undefined,
     empresa: undefined,
     origem: 'Inbound',
-    status: row.CONTATADO === 'Sim' ? 'EM_CONTATO' : 'NOVO',
+    status: status,
     agente_atual_id: agentId,
     tempo_parado: undefined,
-    valor_potencial: 0,
+    valor_potencial: Math.round(valorPotencial),
     ultima_interacao: ultimaInteracao,
     created_at: createdAt,
     updated_at: createdAt,

@@ -230,7 +230,7 @@ export const victorService: AgentService = {
     // 9. Disparos realizados hoje
     const hoje = new Date().toISOString().split('T')[0];
     const disparos_hoje = data.disparo.filter(d =>
-      d.dateTime_disparo && d.dateTime_disparo.startsWith(hoje)
+      d.dateTime_disparo && typeof d.dateTime_disparo === 'string' && d.dateTime_disparo.startsWith(hoje)
     ).length;
 
     // 10. Conversas ativas (memória de sessão)
