@@ -44,7 +44,7 @@ export function VictorKanban({ data }: VictorKanbanProps) {
   const { kanban, meta } = data;
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
       {STAGES.map((stage) => {
         const clients = kanban[stage.key] || [];
         const stageMeta = meta[stage.key] || { count: 0, total_recuperado: 0 };
@@ -52,7 +52,7 @@ export function VictorKanban({ data }: VictorKanbanProps) {
         return (
           <div
             key={stage.key}
-            className={`flex-shrink-0 w-72 ${stage.bgColor} rounded-lg p-4`}
+            className={`${stage.bgColor} rounded-lg p-4`}
           >
             {/* Header da coluna */}
             <div className="flex items-center justify-between mb-4">

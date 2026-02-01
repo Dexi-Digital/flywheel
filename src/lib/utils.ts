@@ -5,13 +5,16 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(value: number): string {
+  const isInteger = Number.isInteger(value);
+
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: isInteger ? 0 : 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }
+
 
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat('pt-BR').format(value);
