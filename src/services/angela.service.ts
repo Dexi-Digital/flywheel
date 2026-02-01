@@ -51,20 +51,40 @@ async function fetchAngelaData(sb: SupabaseClient) {
     .order("date_time", { ascending: false })
     .limit(100);
 
+  // 4. Análises de IA (sentimento, problemas, oportunidades)
+  const analysisPromise = sb
+    .from("angela_ai_analysis")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  // 5. Histórico de chat
+  const chatPromise = sb
+    .from("angela_chat_histories")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
   // Aguardar todas em paralelo
-  const [leadsAtivosRes, alertasRes, intervencaoRes] = await Promise.all([
+  const [leadsAtivosRes, alertasRes, intervencaoRes, analysisRes, chatRes] = await Promise.all([
     leadsAtivosPromise,
     alertasPromise,
     intervencaoPromise,
+    analysisPromise,
+    chatPromise,
   ]);
 
   if (leadsAtivosRes.error) console.warn(`regua_relacionamento: ${leadsAtivosRes.error.message}`);
   if (alertasRes.error) console.warn(`logs_alertas_enviados: ${alertasRes.error.message}`);
   if (intervencaoRes.error) console.warn(`intervencao_humana: ${intervencaoRes.error.message}`);
+  if (analysisRes.error) console.warn(`angela_ai_analysis: ${analysisRes.error.message}`);
+  if (chatRes.error) console.warn(`angela_chat_histories: ${chatRes.error.message}`);
 
   const leadsAtivos = (leadsAtivosRes.data ?? []) as Record<string, any>[];
   const alertas = (alertasRes.data ?? []) as Record<string, any>[];
   const intervencoes = (intervencaoRes.data ?? []) as Record<string, any>[];
+  const analysis = (analysisRes.data ?? []) as Record<string, any>[];
+  const chat = (chatRes.data ?? []) as Record<string, any>[];
 
   // Buscar dados completos dos leads transferidos via JOIN manual
   const sessionIdsAlertas = alertas.map(a => a.sessionId).filter(Boolean);
@@ -97,6 +117,8 @@ async function fetchAngelaData(sb: SupabaseClient) {
     leadsAtivos,
     alertas,
     intervencoes,
+    analysis,
+    chat,
     leadsMap,
   };
 }
@@ -179,20 +201,80 @@ export const angelaService: AgentService = {
 
     const allEvents = [...eventosAlertas, ...eventosIntervencao];
 
-    // Calcular métricas
+    // MÉTRICAS ESPECÍFICAS DA ÂNGELA (CSM - Customer Success Manager)
+
+    // 1. Resgate de inativos (>6 meses sem contato)
+    const seisMesesAtras = new Date();
+    seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
+    const leadsInativos = data.leadsAtivos.filter(l => {
+      const lastInteraction = new Date(l.updated_at || l.created_at);
+      return lastInteraction < seisMesesAtras;
+    }).length;
+    const taxaResgateInativos = data.leadsAtivos.length > 0 ?
+      (leadsInativos / data.leadsAtivos.length) * 100 : 0;
+
+    // 2. Análise de satisfação (sentimento)
+    const satisfacaoPositiva = data.analysis.filter(a =>
+      a.sentimento && (a.sentimento.toLowerCase().includes('positivo') || a.sentimento.toLowerCase().includes('satisfeito'))
+    ).length;
+    const satisfacaoNegativa = data.analysis.filter(a =>
+      a.sentimento && (a.sentimento.toLowerCase().includes('negativo') || a.sentimento.toLowerCase().includes('insatisfeito'))
+    ).length;
+    const satisfacaoMedia = data.analysis.length > 0 ?
+      ((satisfacaoPositiva - satisfacaoNegativa) / data.analysis.length) * 100 : 0;
+
+    // 3. Detecção de churn (problemas identificados)
+    const alertasChurn = data.analysis.filter(a =>
+      a.problema && (
+        a.problema.toLowerCase().includes('cancelamento') ||
+        a.problema.toLowerCase().includes('insatisfação') ||
+        a.problema.toLowerCase().includes('reclamação')
+      )
+    ).length;
+
+    // 4. Oportunidades de upgrade
+    const oportunidadesUpgrade = data.analysis.filter(a =>
+      a.problema && (
+        a.problema.toLowerCase().includes('upgrade') ||
+        a.problema.toLowerCase().includes('expansão') ||
+        a.problema.toLowerCase().includes('crescimento')
+      )
+    ).length;
+
+    // 5. Visitas presenciais agendadas (via chat)
+    const visitasAgendadas = data.chat.filter(c =>
+      c.message && (
+        c.message.toLowerCase().includes('agendar') ||
+        c.message.toLowerCase().includes('visita') ||
+        c.message.toLowerCase().includes('café na loja')
+      )
+    ).length;
+
+    // Calcular métricas gerais
     const leadsTransferidos = eventosAlertas.length;
     const intervencoes = eventosIntervencao.length;
     const valorGerado = allEvents.reduce((sum, e) => sum + (e.metadata.valor ?? 0), 0);
 
-    console.log(`[Angela] Leads Ativos: ${leadsAtivos.length}, Alertas: ${eventosAlertas.length}, Intervenções: ${eventosIntervencao.length}, Valor Gerado: R$ ${valorGerado.toLocaleString('pt-BR')}`);
+    console.log(`[Angela CSM] Leads Ativos: ${leadsAtivos.length}, Inativos: ${leadsInativos}, ` +
+      `Satisfação: ${satisfacaoMedia.toFixed(1)}%, Alertas Churn: ${alertasChurn}, Visitas: ${visitasAgendadas}`);
 
     return buildAgentCommon(agentId, "Ângela", leadsAtivos, allEvents, {
+      tipo: 'CSM', // CORREÇÃO: Angela é CSM, não SDR
       metricas_agregadas: {
         leads_ativos: leadsAtivos.length,
-        conversoes: 0,
+        conversoes: visitasAgendadas,
         receita_total: valorGerado,
+        disparos_hoje: allEvents.length,
         leads_transferidos: leadsTransferidos,
         intervencoes_humanas: intervencoes,
+        leads_inativos: leadsInativos,
+        taxa_resgate_inativos: taxaResgateInativos,
+        satisfacao_media: satisfacaoMedia,
+        satisfacao_positiva: satisfacaoPositiva,
+        satisfacao_negativa: satisfacaoNegativa,
+        alertas_churn: alertasChurn,
+        oportunidades_upgrade: oportunidadesUpgrade,
+        visitas_agendadas: visitasAgendadas,
       },
     });
   },

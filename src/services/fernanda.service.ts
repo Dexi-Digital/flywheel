@@ -101,13 +101,68 @@ export const fernandaService: AgentService = {
     const sb = getBrowserTenantClient(agentId, cfg);
 
     const data = await fetchFernandaData(sb);
-    
+
     const leads = data.leads.map((r) => normalizeLead(r, agentId));
     const events: Event[] = [];
 
-    // Log summary
-    console.log(`[Fernanda] Leads: ${leads.length}, Memoria: ${data.memoria.length}, Chat: ${data.chat.length}, Intervencao: ${data.intervencao.length}, Curadoria: ${data.curadoria.length}`);
+    // MÉTRICAS ESPECÍFICAS DA FERNANDA (Win-back/Reconversão)
 
-    return buildAgentCommon(agentId, 'Fernanda', leads, events);
+    // 1. Taxa de reconversão (leads que voltaram a engajar)
+    const leadsContatados = data.leads.filter(l => l.CONTATADO === 'Sim').length;
+    const taxaReconversao = data.leads.length > 0 ? (leadsContatados / data.leads.length) * 100 : 0;
+
+    // 2. Classificação de motivos de perda (via curadoria)
+    const motivosPerda = {
+      preco: 0,
+      produto: 0,
+      atendimento: 0,
+      timing: 0,
+      outros: 0,
+    };
+
+    data.curadoria.forEach(c => {
+      const reasoning = (c.internal_reasoning || '').toLowerCase();
+      if (reasoning.includes('preço') || reasoning.includes('caro')) motivosPerda.preco++;
+      else if (reasoning.includes('produto') || reasoning.includes('veículo')) motivosPerda.produto++;
+      else if (reasoning.includes('atendimento') || reasoning.includes('vendedor')) motivosPerda.atendimento++;
+      else if (reasoning.includes('tempo') || reasoning.includes('prazo')) motivosPerda.timing++;
+      else if (reasoning) motivosPerda.outros++;
+    });
+
+    // 3. Leads que reabriram conversa (mudança de contexto)
+    const leadsReabertos = data.memoria.filter(m =>
+      m.memoria_lead && m.memoria_lead.toLowerCase().includes('retomou contato')
+    ).length;
+
+    // 4. Intervenções humanas (handoff para vendedor)
+    const intervencoes = data.intervencao.filter(i => i.block === true).length;
+
+    // 5. Análise de qualidade (leads com análise completa)
+    const leadsAnalisados = data.curadoria.filter(c =>
+      c.internal_reasoning && c.internal_reasoning.length > 50
+    ).length;
+
+    // Log summary
+    console.log(`[Fernanda] Leads: ${leads.length}, Taxa Reconversão: ${taxaReconversao.toFixed(1)}%, ` +
+      `Leads Reabertos: ${leadsReabertos}, Intervenções: ${intervencoes}, Analisados: ${leadsAnalisados}`);
+
+    return buildAgentCommon(agentId, 'Fernanda', leads, events, {
+      tipo: 'WINBACK',
+      metricas_agregadas: {
+        leads_ativos: leads.length,
+        conversoes: leadsContatados,
+        receita_total: 0,
+        disparos_hoje: events.length,
+        taxa_reconversao: taxaReconversao,
+        leads_reabertos: leadsReabertos,
+        intervencoes_humanas: intervencoes,
+        leads_analisados: leadsAnalisados,
+        motivos_perda_preco: motivosPerda.preco,
+        motivos_perda_produto: motivosPerda.produto,
+        motivos_perda_atendimento: motivosPerda.atendimento,
+        motivos_perda_timing: motivosPerda.timing,
+        motivos_perda_outros: motivosPerda.outros,
+      },
+    });
   },
 };

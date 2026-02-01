@@ -125,9 +125,61 @@ export const aliceService: AgentService = {
     const leads = data.leads.map((r) => normalizeLead(r, agentId));
     const events: Event[] = [];
 
-    // Log summary
-    console.log(`[Alice] Leads: ${leads.length}, Chat: ${data.chat.length}, Memoria: ${data.memoria.length}, FollowUps: ${data.followups.length}, Curadoria: ${data.curadoria.length}, Intervencao: ${data.intervencao.length}, Alertas: ${data.alertas.length}`);
+    // MÉTRICAS ESPECÍFICAS DA ALICE (BDR Outbound)
 
-    return buildAgentCommon(agentId, 'Alice', leads, events);
+    // 1. Taxa de bloqueio (crítico para anti-ban)
+    const totalAlertas = data.alertas.length;
+    const alertasBloqueio = data.alertas.filter(a =>
+      a.alerta && (a.alerta.toLowerCase().includes('bloqueio') || a.alerta.toLowerCase().includes('spam'))
+    ).length;
+    const taxaBloqueio = totalAlertas > 0 ? (alertasBloqueio / totalAlertas) * 100 : 0;
+
+    // 2. Cadências ativas vs pausadas
+    const followupsAtivos = data.followups.filter(f => f.shot_fired === false).length;
+    const followupsEnviados = data.followups.filter(f => f.shot_fired === true).length;
+
+    // 3. Taxa de resposta (engajamento)
+    const totalMensagensEnviadas = data.chat.filter(c =>
+      c.message && !c.message.startsWith('[USER]')
+    ).length;
+    const respostasRecebidas = data.chat.filter(c =>
+      c.message && c.message.startsWith('[USER]')
+    ).length;
+    const taxaResposta = totalMensagensEnviadas > 0 ?
+      (respostasRecebidas / totalMensagensEnviadas) * 100 : 0;
+
+    // 4. Intervenções humanas (handoff)
+    const intervencoes = data.intervencao.filter(i => i.block === true).length;
+
+    // 5. Análise de sentimento das respostas
+    const respostasPositivas = data.curadoria.filter(c =>
+      c.internal_reasoning && c.internal_reasoning.toLowerCase().includes('interesse')
+    ).length;
+    const respostasNegativas = data.curadoria.filter(c =>
+      c.internal_reasoning && (
+        c.internal_reasoning.toLowerCase().includes('não tenho interesse') ||
+        c.internal_reasoning.toLowerCase().includes('não quero')
+      )
+    ).length;
+
+    // Log summary
+    console.log(`[Alice] Leads: ${leads.length}, Taxa Bloqueio: ${taxaBloqueio.toFixed(1)}%, ` +
+      `Taxa Resposta: ${taxaResposta.toFixed(1)}%, Followups Ativos: ${followupsAtivos}, Intervenções: ${intervencoes}`);
+
+    return buildAgentCommon(agentId, 'Alice', leads, events, {
+      tipo: 'BDR',
+      metricas_agregadas: {
+        leads_ativos: leads.length,
+        conversoes: respostasPositivas,
+        receita_total: 0,
+        disparos_hoje: followupsEnviados,
+        taxa_bloqueio: taxaBloqueio,
+        taxa_resposta: taxaResposta,
+        followups_ativos: followupsAtivos,
+        intervencoes_humanas: intervencoes,
+        respostas_positivas: respostasPositivas,
+        respostas_negativas: respostasNegativas,
+      },
+    });
   },
 };

@@ -176,12 +176,73 @@ export const luisService: AgentService = {
     const leads = data.leads.map((r) => normalizeLead(r, agentId));
     const events: Event[] = [];
 
-    // Log summary
-    console.log(`[Luis] Leads: ${leads.length}, Sessions: ${data.sessions.length}, Analises: ${data.analises.length}, ` +
-      `ChatHistories: ${data.chatHistories.length}, Reminders: ${data.reminders.length}, ` +
-      `FollowupConfig: ${data.followupConfig.length}, BufferMsg: ${data.bufferMessage.length}, ` +
-      `Contatos: ${data.contatos.length}, Documents: ${data.documents.length}`);
+    // MÉTRICAS ESPECÍFICAS DO LUÍS
 
-    return buildAgentCommon(agentId, 'Luís', leads, events);
+    // 1. Speed to Lead (<60s SLA)
+    let speedToLeadCount = 0;
+    let totalDigitalLeads = 0;
+
+    data.sessions.forEach(session => {
+      const lead = data.leads.find(l => String(l.id) === String(session.lead_id));
+      if (lead && ['Site', 'Chat', 'WebMotors'].includes(lead.origem)) {
+        totalDigitalLeads++;
+        const leadCreated = new Date(lead.created_at).getTime();
+        const sessionCreated = new Date(session.created_at).getTime();
+        const diffSeconds = (sessionCreated - leadCreated) / 1000;
+        if (diffSeconds <= 60) speedToLeadCount++;
+      }
+    });
+
+    const speedToLeadRate = totalDigitalLeads > 0 ? (speedToLeadCount / totalDigitalLeads) * 100 : 0;
+
+    // 2. Score de Qualificação BANT (média)
+    let totalScore = 0;
+    let scoredLeads = 0;
+
+    data.analises.forEach(analise => {
+      let score = 0;
+      if (analise.interesse === 'Alto') score += 30;
+      else if (analise.interesse === 'Médio') score += 15;
+
+      if (analise.interesse_compra_futura === 'Imediato') score += 30;
+      else if (analise.interesse_compra_futura === 'Curto prazo') score += 20;
+      else if (analise.interesse_compra_futura === 'Médio prazo') score += 10;
+
+      if (analise.solicitou_retorno === true) score += 20;
+      if (analise.respondeu === true) score += 20;
+
+      if (score > 0) {
+        totalScore += score;
+        scoredLeads++;
+      }
+    });
+
+    const avgQualificationScore = scoredLeads > 0 ? totalScore / scoredLeads : 0;
+
+    // 3. Follow-ups ativos
+    const followupsAtivos = data.reminders.filter(r => r.status === 'pending').length;
+
+    // 4. Taxa de resposta pós-follow-up
+    const followupsSent = data.reminders.filter(r => r.status === 'sent').length;
+    const followupResponseRate = followupsSent > 0 ?
+      (data.analises.filter(a => a.respondeu === true).length / followupsSent) * 100 : 0;
+
+    // Log summary
+    console.log(`[Luis] Leads: ${leads.length}, Speed-to-Lead: ${speedToLeadRate.toFixed(1)}%, ` +
+      `Avg Score: ${avgQualificationScore.toFixed(0)}, Followups Ativos: ${followupsAtivos}`);
+
+    return buildAgentCommon(agentId, 'Luís', leads, events, {
+      tipo: 'SDR',
+      metricas_agregadas: {
+        leads_ativos: leads.length,
+        conversoes: leads.filter(l => l.status === 'GANHO').length,
+        receita_total: leads.filter(l => l.status === 'GANHO').reduce((s, l) => s + l.valor_potencial, 0),
+        disparos_hoje: events.length,
+        speed_to_lead_rate: speedToLeadRate,
+        avg_qualification_score: avgQualificationScore,
+        followups_ativos: followupsAtivos,
+        followup_response_rate: followupResponseRate,
+      },
+    });
   },
 };

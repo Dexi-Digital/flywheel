@@ -18,10 +18,13 @@ export function buildAgentCommon(
     .filter((l) => l.status === 'GANHO')
     .reduce((sum, l) => sum + (l.valor_potencial ?? 0), 0);
 
+  // Tipo padrão é SDR, mas pode ser sobrescrito via overrides
+  const defaultTipo: AgentType = 'SDR';
+
   return {
     id: agentId,
     nome: agentName,
-    tipo: 'SDR' as AgentType,
+    tipo: defaultTipo,
     status: 'ATIVO' as AgentStatus,
     avatar_url: undefined,
     metricas_agregadas: {
