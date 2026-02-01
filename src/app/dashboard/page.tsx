@@ -13,15 +13,15 @@ import {
   formatCurrency,
   DashboardMetrics,
   LeadsOverTimeDataPoint,
-  ConversionFunnelStage,
   AgentPerformance,
 } from '@/lib/aggregated-data';
+import { FunnelData } from '@/types/database.types';
 import { Users, DollarSign, RefreshCcw, TrendingUp, Bot } from 'lucide-react';
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [leadsTimeData, setLeadsTimeData] = useState<LeadsOverTimeDataPoint[]>([]);
-  const [funnelData, setFunnelData] = useState<ConversionFunnelStage[]>([]);
+  const [funnelData, setFunnelData] = useState<FunnelData[]>([]);
   const [agentPerformance, setAgentPerformance] = useState<AgentPerformance[]>([]);
   const [loading, setLoading] = useState(true);
 

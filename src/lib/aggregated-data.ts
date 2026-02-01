@@ -1,5 +1,5 @@
 // Funções para agregar dados de todos os agentes
-import { Agent, Lead, Event } from '@/types/database.types';
+import { Agent, Lead, Event, FunnelData } from '@/types/database.types';
 
 export interface DashboardMetrics {
   total_leads: number;
@@ -8,11 +8,24 @@ export interface DashboardMetrics {
   receita_total: number;
   taxa_conversao: number;
   disparos_hoje: number;
+  economia_gerada: number;
+  economia_gerada_variacao: number;
+  receita_variacao: number;
+  leads_ativos_variacao: number;
+  receita_pipeline: number;
+  receita_pipeline_variacao: number;
+  receita_recuperada: number;
+  receita_recuperada_variacao: number;
+  leads_salvos_otto: number;
+  leads_salvos_otto_variacao: number;
 }
 
 export interface LeadsOverTimeDataPoint {
   date: string;
-  leads: number;
+  novos: number;
+  qualificados: number;
+  ganhos: number;
+  [key: string]: string | number; // Index signature para compatibilidade
 }
 
 export interface ConversionFunnelStage {
@@ -101,6 +114,26 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     new Date(e.timestamp) >= hoje
   ).length;
 
+  // Cálculo de economia gerada (exemplo: 10 min por lead ativo × custo/min)
+  const custoMinutoHumano = 2.5; // R$ 2,50 por minuto (exemplo)
+  const minutosPorLead = 10;
+  const economiaGerada = leadsAtivos * minutosPorLead * custoMinutoHumano;
+
+  // Receita em pipeline (leads ativos)
+  const receitaPipeline = allLeads
+    .filter(l => l.status !== 'PERDIDO' && l.status !== 'GANHO')
+    .reduce((sum, l) => sum + (l.valor_potencial ?? 0), 0);
+
+  // Receita recuperada (leads que foram reativados)
+  const receitaRecuperada = allEvents
+    .filter(e => e.tipo === 'RECUPERACAO')
+    .reduce((sum, e) => sum + (e.metadata?.valor ?? 0), 0);
+
+  // Leads salvos pelo OTTO (intervenções)
+  const leadsSalvosOtto = allEvents.filter(e =>
+    e.tipo === 'INTERVENCAO_OTTO'
+  ).length;
+
   return {
     total_leads: allLeads.length,
     leads_ativos: leadsAtivos,
@@ -108,50 +141,64 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     receita_total: receitaTotal,
     taxa_conversao: taxaConversao,
     disparos_hoje: disparosHoje,
+    economia_gerada: economiaGerada,
+    economia_gerada_variacao: 12.5, // Exemplo: +12.5%
+    receita_variacao: 8.3, // Exemplo: +8.3%
+    leads_ativos_variacao: 5.2, // Exemplo: +5.2%
+    receita_pipeline: receitaPipeline,
+    receita_pipeline_variacao: 7.8, // Exemplo: +7.8%
+    receita_recuperada: receitaRecuperada,
+    receita_recuperada_variacao: 15.3, // Exemplo: +15.3%
+    leads_salvos_otto: leadsSalvosOtto,
+    leads_salvos_otto_variacao: 9.1, // Exemplo: +9.1%
   };
 }
 
 export async function getLeadsOverTimeData(): Promise<LeadsOverTimeDataPoint[]> {
   const agents = await fetchAllAgents();
   const allLeads = agents.flatMap(a => a.leads || []);
-  
-  // Agrupar leads por data de criação
-  const leadsByDate = new Map<string, number>();
-  
+
+  // Agrupar leads por data de criação e status
+  const leadsByDate = new Map<string, { novos: number; qualificados: number; ganhos: number }>();
+
   allLeads.forEach(lead => {
     const date = new Date(lead.created_at).toISOString().split('T')[0];
-    leadsByDate.set(date, (leadsByDate.get(date) || 0) + 1);
+    const current = leadsByDate.get(date) || { novos: 0, qualificados: 0, ganhos: 0 };
+
+    if (lead.status === 'NOVO') current.novos++;
+    else if (lead.status === 'QUALIFICADO') current.qualificados++;
+    else if (lead.status === 'GANHO') current.ganhos++;
+
+    leadsByDate.set(date, current);
   });
-  
+
   // Converter para array e ordenar
   const data = Array.from(leadsByDate.entries())
-    .map(([date, leads]) => ({ date, leads }))
+    .map(([date, counts]) => ({ date, ...counts }))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-30); // Últimos 30 dias
-  
+
   return data;
 }
 
-export async function getConversionFunnelData(): Promise<ConversionFunnelStage[]> {
+export async function getConversionFunnelData(): Promise<FunnelData[]> {
   const agents = await fetchAllAgents();
   const allLeads = agents.flatMap(a => a.leads || []);
-  
-  const total = allLeads.length || 1;
-  
+
   const stages = [
-    { stage: 'Novo', status: 'NOVO' },
-    { stage: 'Em Contato', status: 'EM_CONTATO' },
-    { stage: 'Qualificado', status: 'QUALIFICADO' },
-    { stage: 'Negociação', status: 'NEGOCIACAO' },
-    { stage: 'Ganho', status: 'GANHO' },
+    { stage: 'Novo', status: 'NOVO', fill: '#0f62fe' },
+    { stage: 'Em Contato', status: 'EM_CONTATO', fill: '#8a3ffc' },
+    { stage: 'Qualificado', status: 'QUALIFICADO', fill: '#198038' },
+    { stage: 'Negociação', status: 'NEGOCIACAO', fill: '#fa4d56' },
+    { stage: 'Ganho', status: 'GANHO', fill: '#24a148' },
   ];
-  
-  return stages.map(({ stage, status }) => {
-    const count = allLeads.filter(l => l.status === status).length;
+
+  return stages.map(({ stage, status, fill }) => {
+    const value = allLeads.filter(l => l.status === status).length;
     return {
       stage,
-      count,
-      percentage: (count / total) * 100,
+      value,
+      fill,
     };
   });
 }
