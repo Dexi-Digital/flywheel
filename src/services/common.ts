@@ -19,12 +19,12 @@ export function buildAgentCommon(
     .reduce((sum, l) => sum + (l.valor_potencial ?? 0), 0);
 
   // Tipo padrão é SDR, mas pode ser sobrescrito via overrides
-  const defaultTipo: AgentType = 'SDR';
+  const tipo: AgentType = overrides?.tipo || 'SDR';
 
   return {
     id: agentId,
     nome: agentName,
-    tipo: defaultTipo,
+    tipo,
     status: 'ATIVO' as AgentStatus,
     avatar_url: undefined,
     metricas_agregadas: {

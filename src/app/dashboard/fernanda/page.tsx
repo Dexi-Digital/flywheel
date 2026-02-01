@@ -5,35 +5,13 @@ import { BrainDrawer } from '@/components/shared';
 import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-
-interface FernandaAgent {
-  id: string;
-  nome: string;
-  leads_ativos: number;
-  conversoes: number;
-  receita_total: number;
-}
-
-interface LeadData {
-  id: string;
-  nome: string;
-  veiculo?: string;
-  intencao?: string;
-  whatsapp?: string;
-  email?: string;
-  sessionid?: string;
-  contatado: boolean;
-  created_at: string;
-}
+import { buildService } from '@/services/factory';
+import type { Agent } from '@/types/database.types';
 
 export default function FernandaPage() {
-  const [agent, setAgent] = useState<FernandaAgent | null>(null);
-  const [leads, setLeads] = useState<LeadData[]>([]);
-  const [memoria, setMemoria] = useState<any[]>([]);
-  const [chats, setChats] = useState<any[]>([]);
-  const [intervencoes, setIntervencoes] = useState<any[]>([]);
-  const [curadoria, setCuradoria] = useState<any[]>([]);
+  const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
   const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
   const [selectedLeadName, setSelectedLeadName] = useState('');
@@ -56,28 +34,20 @@ export default function FernandaPage() {
   }, [isBrainDrawerOpen, selectedLead, fetchBrainData]);
 
   useEffect(() => {
-    const fetchFernandaData = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch('/api/agents/fernanda');
-        const json = await res.json();
-
-        if (json && json.leads_ativos !== undefined) {
-          setAgent({
-            id: 'fernanda',
-            nome: 'Fernanda',
-            leads_ativos: json.leads_ativos,
-            conversoes: json.conversoes,
-            receita_total: json.receita_total,
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching Fernanda data:', error);
+        setLoading(true);
+        const service = buildService('fernanda');
+        const data = await service.getAgent('fernanda');
+        setAgent(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchFernandaData();
+    fetchData();
   }, []);
 
   if (loading) {
@@ -88,7 +58,26 @@ export default function FernandaPage() {
     );
   }
 
-  const contactedCount = leads.filter((l) => l.contatado).length;
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card className="p-6 bg-red-50 border-red-200">
+          <div className="text-red-900">Erro: {error}</div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!agent) {
+    return (
+      <div className="p-6 text-center">
+        <div className="text-gray-500">Agente não encontrado</div>
+      </div>
+    );
+  }
+
+  const leads = agent.leads || [];
+  const taxaConversao = leads.length > 0 ? ((agent.metricas_agregadas.conversoes || 0) / leads.length) * 100 : 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -107,18 +96,18 @@ export default function FernandaPage() {
           <div className="text-3xl font-bold text-blue-600">{leads.length}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Taxa de Contato</div>
-          <div className="text-3xl font-bold text-green-600">
-            {leads.length > 0 ? Math.round((contactedCount / leads.length) * 100) : 0}%
-          </div>
+          <div className="text-sm text-gray-600 mb-1">Taxa de Sucesso</div>
+          <div className="text-3xl font-bold text-green-600">{taxaConversao.toFixed(1)}%</div>
         </Card>
         <Card className="p-4">
           <div className="text-sm text-gray-600 mb-1">Conversões</div>
-          <div className="text-3xl font-bold text-purple-600">{agent?.conversoes || 0}</div>
+          <div className="text-3xl font-bold text-purple-600">{agent.metricas_agregadas.conversoes}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Receita Gerada</div>
-          <div className="text-3xl font-bold text-orange-600">R$ {(agent?.receita_total || 0).toLocaleString('pt-BR')}</div>
+          <div className="text-sm text-gray-600 mb-1">Receita Recuperada</div>
+          <div className="text-3xl font-bold text-orange-600">
+            R$ {(agent.metricas_agregadas.receita_total || 0).toLocaleString('pt-BR')}
+          </div>
         </Card>
       </div>
 
@@ -134,10 +123,9 @@ export default function FernandaPage() {
                   <thead className="border-b bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left font-semibold">Lead</th>
-                      <th className="px-4 py-2 text-left font-semibold">Veículo</th>
-                      <th className="px-4 py-2 text-left font-semibold">Intenção</th>
-                      <th className="px-4 py-2 text-left font-semibold">Contato</th>
-                      <th className="px-4 py-2 text-left font-semibold">Última Interação</th>
+                      <th className="px-4 py-2 text-left font-semibold">Status</th>
+                      <th className="px-4 py-2 text-left font-semibold">Valor Potencial</th>
+                      <th className="px-4 py-2 text-left font-semibold">Data</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -147,17 +135,13 @@ export default function FernandaPage() {
                         className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
                         onClick={() => handleLeadClick(lead.id, lead.nome)}
                       >
+                        <td className="px-4 py-3 font-medium">{lead.nome}</td>
                         <td className="px-4 py-3">
-                          <div className="font-medium">{lead.nome}</div>
-                          <div className="text-xs text-gray-500">{lead.whatsapp || lead.email || '-'}</div>
-                        </td>
-                        <td className="px-4 py-3 text-sm">{lead.veiculo || '-'}</td>
-                        <td className="px-4 py-3 text-sm">{lead.intencao || '-'}</td>
-                        <td className="px-4 py-3">
-                          <Badge className={lead.contatado ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                            {lead.contatado ? '✓ Contactado' : 'Não contactado'}
+                          <Badge className={lead.status === 'GANHO' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                            {lead.status}
                           </Badge>
                         </td>
+                        <td className="px-4 py-3 text-sm">R$ {(lead.valor_potencial || 0).toLocaleString('pt-BR')}</td>
                         <td className="px-4 py-3 text-sm text-gray-500">
                           {new Date(lead.created_at).toLocaleDateString('pt-BR')}
                         </td>
@@ -173,15 +157,15 @@ export default function FernandaPage() {
             </Card>
           )}
 
-          {/* Intervenções */}
-          {intervencoes.length > 0 && (
+          {/* Eventos Recentes */}
+          {agent.events && agent.events.length > 0 && (
             <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">⚠️ Intervenções Humanas</h2>
+              <h2 className="text-lg font-semibold mb-4">📅 Atividade Recente</h2>
               <div className="space-y-2">
-                {intervencoes.slice(0, 10).map((intervencao, idx) => (
-                  <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded text-sm">
-                    <div className="font-mono text-xs text-red-700">{intervencao.sessionid}</div>
-                    <div className="text-red-900 mt-1">{intervencao.block}</div>
+                {agent.events.slice(0, 10).map((event, idx) => (
+                  <div key={idx} className="p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+                    <div className="font-semibold text-blue-900">{(event as any).titulo || 'Evento'}</div>
+                    <div className="text-xs text-blue-700 mt-1">{(event as any).descricao}</div>
                   </div>
                 ))}
               </div>
@@ -191,33 +175,23 @@ export default function FernandaPage() {
 
         {/* Right: Sidebar */}
         <div className="space-y-6">
-          {/* Memória */}
-          {memoria.length > 0 && (
-            <Card className="p-4">
-              <h3 className="font-semibold text-sm mb-3">💾 Memória</h3>
-              <div className="space-y-2">
-                {memoria.slice(0, 5).map((mem, idx) => (
-                  <div key={idx} className="p-2 bg-gray-100 rounded text-xs">
-                    <div className="text-gray-700 line-clamp-2">{mem.last_message_ia}</div>
-                  </div>
-                ))}
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3">📊 Resumo</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Leads Ativos:</span>
+                <span className="font-semibold">{agent.metricas_agregadas.leads_ativos}</span>
               </div>
-            </Card>
-          )}
-
-          {/* Curadoria */}
-          {curadoria.length > 0 && (
-            <Card className="p-4">
-              <h3 className="font-semibold text-sm mb-3">🔍 Erros Detectados</h3>
-              <div className="space-y-2">
-                {curadoria.slice(0, 5).map((item, idx) => (
-                  <Badge key={idx} className="bg-orange-100 text-orange-800 block mb-2 p-2">
-                    {item.name}
-                  </Badge>
-                ))}
+              <div className="flex justify-between">
+                <span className="text-gray-600">Taxa Conversão:</span>
+                <span className="font-semibold">{taxaConversao.toFixed(1)}%</span>
               </div>
-            </Card>
-          )}
+              <div className="flex justify-between">
+                <span className="text-gray-600">Disparos Hoje:</span>
+                <span className="font-semibold">{agent.metricas_agregadas.disparos_hoje || 0}</span>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
@@ -233,14 +207,6 @@ export default function FernandaPage() {
         internalReasoning={brainData.internalReasoning}
         memoryData={brainData.memoryData}
       />
-
-      {/* Debug info */}
-      {agent && (
-        <div className="mt-8 p-4 bg-blue-50 rounded border border-blue-200 text-sm text-blue-900">
-          <strong>Agent Data:</strong> Leads ativos: {agent.leads_ativos}, Conversões:{' '}
-          {agent.conversoes}, Receita: R$ {agent.receita_total.toLocaleString('pt-BR')}
-        </div>
-      )}
     </div>
   );
 }

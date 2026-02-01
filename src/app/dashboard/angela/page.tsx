@@ -5,32 +5,13 @@ import { BrainDrawer } from '@/components/shared';
 import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-
-interface AngelaAgent {
-  id: string;
-  nome: string;
-  leads_ativos: number;
-  conversoes: number;
-  receita_total: number;
-}
-
-interface CustomerData {
-  id: string;
-  nome: string;
-  email?: string;
-  telefone?: string;
-  status?: string;
-  satisfacao?: string;
-  created_at: string;
-}
+import { buildService } from '@/services/factory';
+import type { Agent } from '@/types/database.types';
 
 export default function AngelaPage() {
-  const [agent, setAgent] = useState<AngelaAgent | null>(null);
-  const [customers, setCustomers] = useState<CustomerData[]>([]);
-  const [pedidos, setPedidos] = useState<any[]>([]);
-  const [satisfacao, setSatisfacao] = useState<any[]>([]);
-  const [chats, setChats] = useState<any[]>([]);
+  const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
   const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
   const [selectedLeadName, setSelectedLeadName] = useState('');
@@ -53,28 +34,20 @@ export default function AngelaPage() {
   }, [isBrainDrawerOpen, selectedLead, fetchBrainData]);
 
   useEffect(() => {
-    const fetchAngelaData = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch('/api/agents/angela');
-        const json = await res.json();
-
-        if (json && json.leads_ativos !== undefined) {
-          setAgent({
-            id: 'angela',
-            nome: 'Angela',
-            leads_ativos: json.leads_ativos,
-            conversoes: json.conversoes,
-            receita_total: json.receita_total,
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching Angela data:', error);
+        setLoading(true);
+        const service = buildService('angela');
+        const data = await service.getAgent('angela');
+        setAgent(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAngelaData();
+    fetchData();
   }, []);
 
   if (loading) {
@@ -85,8 +58,27 @@ export default function AngelaPage() {
     );
   }
 
-  const satisfiedCount = satisfacao.filter((s) => s.sentimento === 'Satisfeito' || s.score >= 4).length;
-  const satisfactionRate = satisfacao.length > 0 ? Math.round((satisfiedCount / satisfacao.length) * 100) : 0;
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card className="p-6 bg-red-50 border-red-200">
+          <div className="text-red-900">Erro: {error}</div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!agent) {
+    return (
+      <div className="p-6 text-center">
+        <div className="text-gray-500">Agente não encontrado</div>
+      </div>
+    );
+  }
+
+  const customers = agent.leads || [];
+  const satisfiedCount = customers.filter((c) => (c as any).satisfacao === 'Satisfeito' || (c as any).score >= 4).length;
+  const satisfactionRate = customers.length > 0 ? Math.round((satisfiedCount / customers.length) * 100) : 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -109,12 +101,12 @@ export default function AngelaPage() {
           <div className="text-3xl font-bold text-green-600">{satisfactionRate}%</div>
         </Card>
         <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Pedidos</div>
-          <div className="text-3xl font-bold text-purple-600">{pedidos.length}</div>
+          <div className="text-sm text-gray-600 mb-1">Conversões</div>
+          <div className="text-3xl font-bold text-purple-600">{agent.metricas_agregadas.conversoes}</div>
         </Card>
         <Card className="p-4">
           <div className="text-sm text-gray-600 mb-1">Receita Retida</div>
-          <div className="text-3xl font-bold text-orange-600">R$ {(agent?.receita_total || 0).toLocaleString('pt-BR')}</div>
+          <div className="text-3xl font-bold text-orange-600">R$ {(agent.metricas_agregadas.receita_total || 0).toLocaleString('pt-BR')}</div>
         </Card>
       </div>
 
@@ -147,8 +139,8 @@ export default function AngelaPage() {
                         <td className="px-4 py-3 text-sm">{customer.email || '-'}</td>
                         <td className="px-4 py-3 text-sm">{customer.telefone || '-'}</td>
                         <td className="px-4 py-3">
-                          <Badge className={customer.satisfacao === 'Satisfeito' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                            {customer.satisfacao || 'Pendente'}
+                          <Badge className={(customer as any).satisfacao === 'Satisfeito' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                            {(customer as any).satisfacao || 'Pendente'}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-sm">{customer.status || 'Ativo'}</td>
@@ -163,54 +155,23 @@ export default function AngelaPage() {
               <p>Nenhum cliente em acompanhamento</p>
             </Card>
           )}
-
-          {/* Pedidos */}
-          {pedidos.length > 0 && (
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">📦 Pedidos Acompanhados</h2>
-              <div className="space-y-2">
-                {pedidos.slice(0, 10).map((pedido, idx) => (
-                  <div key={idx} className="p-3 bg-purple-50 border border-purple-200 rounded text-sm">
-                    <div className="font-semibold">{pedido.order_id || `Pedido ${idx + 1}`}</div>
-                    <div className="text-xs text-gray-600">
-                      Status: {pedido.status || 'Processando'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
         </div>
 
         {/* Right: Sidebar */}
         <div className="space-y-6">
-          {/* Satisfação */}
-          {satisfacao.length > 0 && (
+          {/* Recent Events */}
+          {agent.events && agent.events.length > 0 && (
             <Card className="p-4">
-              <h3 className="font-semibold text-sm mb-3">😊 Feedback Recente</h3>
+              <h3 className="font-semibold text-sm mb-3">📅 Atividades Recentes</h3>
               <div className="space-y-2">
-                {satisfacao.slice(0, 5).map((feedback, idx) => (
+                {agent.events.slice(0, 5).map((event, idx) => (
                   <div key={idx} className="p-2 bg-green-50 rounded text-xs border border-green-200">
                     <div className="text-green-900 font-medium">
-                      {feedback.sentimento || 'Positivo'}
+                      {(event as any).tipo || 'Evento'}
                     </div>
                     <div className="text-green-700 text-xs line-clamp-2">
-                      {feedback.feedback || feedback.message}
+                      {(event as any).descricao || (event as any).message}
                     </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Chat History */}
-          {chats.length > 0 && (
-            <Card className="p-4">
-              <h3 className="font-semibold text-sm mb-3">💬 Interações</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {chats.slice(0, 5).map((chat, idx) => (
-                  <div key={idx} className="p-2 bg-blue-100 rounded text-xs">
-                    <div className="text-blue-900 line-clamp-2">{chat.message || chat.content}</div>
                   </div>
                 ))}
               </div>
@@ -232,14 +193,6 @@ export default function AngelaPage() {
         problema={brainData.problema}
         memoryData={brainData.memoryData}
       />
-
-      {/* Debug info */}
-      {agent && (
-        <div className="mt-8 p-4 bg-blue-50 rounded border border-blue-200 text-sm text-blue-900">
-          <strong>Agent Data:</strong> Clientes ativos: {agent.leads_ativos}, Retenções:{' '}
-          {agent.conversoes}, Receita Retida: R$ {agent.receita_total.toLocaleString('pt-BR')}
-        </div>
-      )}
     </div>
   );
 }

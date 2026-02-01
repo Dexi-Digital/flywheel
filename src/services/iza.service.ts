@@ -205,6 +205,9 @@ export const izaService: AgentService = {
       `ChatHistories: ${data.chatHistories.length}, Curadoria: ${data.curadoria.length}, ` +
       `Alertas: ${data.alertas.length}, Intervencao: ${data.intervencao.length}`);
 
-    return buildAgentCommon(agentId, 'Iza', leads, events);
+    return buildAgentCommon(agentId, 'Iza', leads, events, {
+      tipo: 'BDR',
+    });
   },
 };
+

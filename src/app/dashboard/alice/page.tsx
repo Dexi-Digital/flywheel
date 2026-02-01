@@ -5,31 +5,13 @@ import { BrainDrawer } from '@/components/shared';
 import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-
-interface AliceAgent {
-  id: string;
-  nome: string;
-  leads_ativos: number;
-  conversoes: number;
-  receita_total: number;
-}
-
-interface CampaignData {
-  id: string;
-  nome: string;
-  telefone?: string;
-  email?: string;
-  status?: string;
-  created_at: string;
-}
+import { buildService } from '@/services/factory';
+import type { Agent } from '@/types/database.types';
 
 export default function AlicePage() {
-  const [agent, setAgent] = useState<AliceAgent | null>(null);
-  const [leads, setLeads] = useState<CampaignData[]>([]);
-  const [campaigns, setCampaigns] = useState<any[]>([]);
-  const [chamadas, setChamadas] = useState<any[]>([]);
-  const [chats, setChats] = useState<any[]>([]);
+  const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
   const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
   const [selectedLeadName, setSelectedLeadName] = useState('');
@@ -52,28 +34,20 @@ export default function AlicePage() {
   }, [isBrainDrawerOpen, selectedLead, fetchBrainData]);
 
   useEffect(() => {
-    const fetchAliceData = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch('/api/agents/alice');
-        const json = await res.json();
-
-        if (json && json.leads_ativos !== undefined) {
-          setAgent({
-            id: 'alice',
-            nome: 'Alice',
-            leads_ativos: json.leads_ativos,
-            conversoes: json.conversoes,
-            receita_total: json.receita_total,
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching Alice data:', error);
+        setLoading(true);
+        const service = buildService('alice');
+        const data = await service.getAgent('alice');
+        setAgent(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAliceData();
+    fetchData();
   }, []);
 
   if (loading) {
@@ -83,6 +57,27 @@ export default function AlicePage() {
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card className="p-6 bg-red-50 border-red-200">
+          <div className="text-red-900">Erro: {error}</div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!agent) {
+    return (
+      <div className="p-6 text-center">
+        <div className="text-gray-500">Agente não encontrado</div>
+      </div>
+    );
+  }
+
+  const leads = agent.leads || [];
+  const taxaConversao = leads.length > 0 ? ((agent.metricas_agregadas.conversoes || 0) / leads.length) * 100 : 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -101,17 +96,17 @@ export default function AlicePage() {
           <div className="text-3xl font-bold text-blue-600">{leads.length}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Campanhas</div>
-          <div className="text-3xl font-bold text-indigo-600">{campaigns.length}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Chamadas</div>
-          <div className="text-3xl font-bold text-green-600">{chamadas.length}</div>
-        </Card>
-        <Card className="p-4">
           <div className="text-sm text-gray-600 mb-1">Taxa de Sucesso</div>
-          <div className="text-3xl font-bold text-purple-600">
-            {leads.length > 0 ? Math.round((agent?.conversoes || 0) / leads.length * 100) : 0}%
+          <div className="text-3xl font-bold text-green-600">{taxaConversao.toFixed(1)}%</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-sm text-gray-600 mb-1">Conversões</div>
+          <div className="text-3xl font-bold text-purple-600">{agent.metricas_agregadas.conversoes}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-sm text-gray-600 mb-1">Receita Total</div>
+          <div className="text-3xl font-bold text-orange-600">
+            R$ {(agent.metricas_agregadas.receita_total || 0).toLocaleString('pt-BR')}
           </div>
         </Card>
       </div>
@@ -161,49 +156,23 @@ export default function AlicePage() {
               <p>Nenhum contato disponível</p>
             </Card>
           )}
-
-          {/* Chamadas */}
-          {chamadas.length > 0 && (
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">📞 Histórico de Chamadas</h2>
-              <div className="space-y-2">
-                {chamadas.slice(0, 10).map((chamada, idx) => (
-                  <div key={idx} className="p-3 bg-blue-50 border border-blue-200 rounded text-sm">
-                    <div className="font-semibold">{chamada.nome || 'Contato'}</div>
-                    <div className="text-xs text-gray-600">
-                      {new Date(chamada.created_at).toLocaleDateString('pt-BR')}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
         </div>
 
         {/* Right: Sidebar */}
         <div className="space-y-6">
-          {/* Campanhas */}
-          {campaigns.length > 0 && (
+          {/* Recent Events */}
+          {agent.events && agent.events.length > 0 && (
             <Card className="p-4">
-              <h3 className="font-semibold text-sm mb-3">📢 Campanhas Ativas</h3>
+              <h3 className="font-semibold text-sm mb-3">📅 Atividades Recentes</h3>
               <div className="space-y-2">
-                {campaigns.slice(0, 5).map((campaign, idx) => (
-                  <Badge key={idx} className="bg-indigo-100 text-indigo-800 block mb-2 p-2">
-                    {campaign.nome || campaign.name || `Campanha ${idx + 1}`}
-                  </Badge>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Chat History */}
-          {chats.length > 0 && (
-            <Card className="p-4">
-              <h3 className="font-semibold text-sm mb-3">💬 Mensagens Recentes</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {chats.slice(0, 5).map((chat, idx) => (
-                  <div key={idx} className="p-2 bg-gray-100 rounded text-xs">
-                    <div className="text-gray-700 line-clamp-2">{chat.message || chat.content}</div>
+                {agent.events.slice(0, 5).map((event, idx) => (
+                  <div key={idx} className="p-2 bg-blue-50 rounded text-xs border border-blue-200">
+                    <div className="text-blue-900 font-medium">
+                      {(event as any).tipo || 'Evento'}
+                    </div>
+                    <div className="text-blue-700 text-xs line-clamp-2">
+                      {(event as any).descricao || (event as any).message}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -224,14 +193,6 @@ export default function AlicePage() {
         internalReasoning={brainData.internalReasoning}
         memoryData={brainData.memoryData}
       />
-
-      {/* Debug info */}
-      {agent && (
-        <div className="mt-8 p-4 bg-blue-50 rounded border border-blue-200 text-sm text-blue-900">
-          <strong>Agent Data:</strong> Leads ativos: {agent.leads_ativos}, Conversões:{' '}
-          {agent.conversoes}, Receita: R$ {agent.receita_total.toLocaleString('pt-BR')}
-        </div>
-      )}
     </div>
   );
 }
