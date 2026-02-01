@@ -37,8 +37,8 @@ let cachedData: KanbanApiResponse | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 60 * 1000; // 60 segundos
 
-// Endpoint: RPC do projeto TGV/Vitor (get_kanban_status)
-const KANBAN_ENDPOINT = 'https://wwiwuorpmltzutzisgin.supabase.co/rest/v1/rpc/get_kanban_status';
+// Endpoint: RPC do projeto TGV/Vitor (get_kanban_status_json)
+const KANBAN_ENDPOINT = 'https://wwiwuorpmltzutzisgin.supabase.co/rest/v1/rpc/get_kanban_status_json';
 
 /**
  * Chave anon do projeto do Vitor (TGV). O Kanban usa esse projeto.
@@ -113,47 +113,41 @@ export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiRe
 
   let data: KanbanApiResponse;
   try {
-    // A RPC retorna uma lista de clientes com campos: id_cliente, nome_cliente, status_kanban, motivos
+    // O endpoint retorna { kanban: { status: [{f1, f2, f3}] }, meta: { status: {count, total_recuperado} } }
     const raw = await response.json();
 
-    // Agrupar por status
-    const stages: Record<string, any[]> = {
-      'Recuperado': [],
-      'Promessa de Pagamento': [],
-      'Em Negociacao': [],
-      'Em Aberto': [],
+    // Função para mapear f1/f2/f3 para id_cliente/nome_cliente/valor_recuperado
+    const mapItems = (items: Array<{ f1: string; f2: string | null; f3: number }> | undefined): KanbanClient[] => {
+      if (!items || !Array.isArray(items)) return [];
+      return items.map((it) => ({
+        id_cliente: it.f1 || '',
+        nome_cliente: it.f2 ?? null,
+        valor_recuperado: Number(it.f3) || 0,
+      }));
     };
 
-    (raw || []).forEach((row: any) => {
-      const status = row.status_kanban || 'Em Aberto';
-      const key = status === 'Em Aberto' ? 'Em Aberto' : (status === 'Promessa de Pagamento' ? 'Promessa de Pagamento' : (status === 'Recuperado' ? 'Recuperado' : 'Em Negociacao'));
-      stages[key] = stages[key] || [];
-      stages[key].push({
-        id_cliente: row.id_cliente,
-        nome_cliente: row.nome_cliente,
-        valor_recuperado: Number(row.valor_recuperado) || 0,
-        motivos: Array.isArray(row.motivos) ? row.motivos : [],
-      });
-    });
-
-    // Montar meta com contagens e total recuperado (somando valor_recuperado se presente)
-    const meta = Object.keys(stages).reduce((acc: any, k: string) => {
-      const list = stages[k] || [];
-      acc[k] = {
-        count: list.length,
-        total_recuperado: list.reduce((s: number, it: any) => s + (Number(it.valor_recuperado) || 0), 0),
+    // Extrair meta de cada status
+    const getMeta = (status: string): KanbanMeta => {
+      const m = raw.meta?.[status];
+      return {
+        count: m?.count ?? 0,
+        total_recuperado: Number(m?.total_recuperado ?? 0),
       };
-      return acc;
-    }, {} as any);
+    };
 
     data = {
       kanban: {
-        'Recuperado': stages['Recuperado'] as any[],
-        'Promessa de Pagamento': stages['Promessa de Pagamento'] as any[],
-        'Em Negociacao': stages['Em Negociacao'] as any[],
-        'Em Aberto': stages['Em Aberto'] as any[],
+        'Recuperado': mapItems(raw.kanban?.['Recuperado']),
+        'Promessa de Pagamento': mapItems(raw.kanban?.['Promessa de Pagamento']),
+        'Em Negociacao': mapItems(raw.kanban?.['Em Negociacao']),
+        'Em Aberto': mapItems(raw.kanban?.['Em Aberto']),
       },
-      meta,
+      meta: {
+        'Recuperado': getMeta('Recuperado'),
+        'Promessa de Pagamento': getMeta('Promessa de Pagamento'),
+        'Em Negociacao': getMeta('Em Negociacao'),
+        'Em Aberto': getMeta('Em Aberto'),
+      },
     };
   } catch (err) {
     console.error('[KanbanAPI] Resposta inválida/parsing error:', err);
