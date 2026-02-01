@@ -170,6 +170,16 @@ function toSafeDate(value: unknown): string {
   return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 }
 
+// Função auxiliar para normalizar valores monetários (texto com vírgula para número)
+function parseValorMonetario(valor: unknown): number {
+  if (!valor) return 0;
+  const str = String(valor);
+  // Remove tudo exceto números, ponto, vírgula e sinal de menos
+  const normalized = str.replace(',', '.').replace(/[^0-9.\-]/g, '');
+  const num = parseFloat(normalized);
+  return isNaN(num) ? 0 : num;
+}
+
 function normalizeLead(row: Record<string, any>, agentId: string): Lead {
   const createdAt = toSafeDate(row.created_at);
   const ultimaInteracao = toSafeDate(row.ultima_interacao);
@@ -201,12 +211,41 @@ export const victorService: AgentService = {
 
     const data = await fetchVictorData(sb);
 
-    // MÉTRICAS ESPECÍFICAS DO VICTOR (Agente de Recuperação de Receita TGV)
+    // ========== QUERIES OTIMIZADAS VIA RPC ==========
 
-    // 1. Carteira ativa (contratos em gestão)
+    // 1. RECEITA RECUPERADA (total e últimos 30 dias)
+    const receitaTotalRes = await sb.rpc('get_receita_recuperada_total');
+    const receita_recuperada_total = receitaTotalRes.data?.[0]?.receita_recuperada_total || 0;
+
+    const receitaDiariaRes = await sb.rpc('get_receita_recuperada_30_dias');
+    const receita_por_dia = receitaDiariaRes.data || [];
+
+    // 2. TEMPO MÉDIO DE RESOLUÇÃO (em horas)
+    const tempoMedioRes = await sb.rpc('get_tempo_medio_resolucao');
+    const tempo_medio_resolucao_horas = tempoMedioRes.data?.[0]?.tempo_medio_horas || 0;
+
+    // 3. FLUXO DE TRABALHO (Kanban - contagem por status)
+    const kanbanRes = await sb.rpc('get_kanban_status');
+    const kanban_counts = (kanbanRes.data || []).reduce((acc: any, row: any) => {
+      acc[row.status] = row.quantidade;
+      return acc;
+    }, {});
+
+    const clientes_recuperados = Number(kanban_counts['Recuperado'] || 0);
+    const clientes_promessa = Number(kanban_counts['Promessa de Pagamento'] || 0);
+    const clientes_em_negociacao = Number(kanban_counts['Em Negociacao'] || 0);
+    const clientes_em_aberto = Number(kanban_counts['Em Aberto'] || 0);
+
+    // 4. ATIVIDADE RECENTE (últimos 100 eventos combinados)
+    const atividadeRes = await sb.rpc('get_atividade_recente');
+    const atividades_recentes = atividadeRes.data || [];
+
+    // ========== MÉTRICAS CALCULADAS LOCALMENTE ==========
+
+    // Carteira ativa (contratos em gestão)
     const contratos_ativos = data.renegociacao.length;
 
-    // 2. Parcelas em atraso (crítico: >90 dias = devolução de lote)
+    // Parcelas em atraso (crítico: >90 dias = devolução de lote)
     const parcelas_em_atraso = data.parcelas.filter(p =>
       p.dias_em_atraso && Number(p.dias_em_atraso) > 0
     ).length;
@@ -214,121 +253,152 @@ export const victorService: AgentService = {
       p.dias_em_atraso && Number(p.dias_em_atraso) >= 90
     ).length;
 
-    // 3. Valor total em risco (soma das parcelas atrasadas)
+    // Valor total em risco (soma das parcelas atrasadas com parsing correto)
     const valor_em_risco = data.parcelas
       .filter(p => p.dias_em_atraso && Number(p.dias_em_atraso) > 0)
-      .reduce((sum, p) => sum + (Number(p.valor_parcela) || 0), 0);
+      .reduce((sum, p) => sum + parseValorMonetario(p.valor_parcela), 0);
 
-    // 4. Taxa de automação (mensagens enviadas vs intervenções humanas)
+    // Taxa de automação (mensagens enviadas vs recebidas)
     const mensagens_enviadas = data.mensagens.filter(m => m.direcao === 'ENVIADA').length;
     const mensagens_recebidas = data.mensagens.filter(m => m.direcao === 'RECEBIDA').length;
     const taxa_resposta = mensagens_enviadas > 0 ?
       (mensagens_recebidas / mensagens_enviadas) * 100 : 0;
 
-    // 5. Renegociações ativas (handoff para humano)
+    // Renegociações ativas (handoff para humano)
     const renegociacoes_ativas = data.renegociacao.filter(r => r.ativo === true).length;
 
-    // 6. Comprovantes recebidos (pagamentos em validação)
+    // Comprovantes recebidos (pagamentos em validação)
     const comprovantes_recebidos = data.comprovantes.length;
 
-    // 7. Opt-outs (clientes que solicitaram parar comunicação)
+    // Opt-outs e WhatsApp inválidos
     const opt_outs = data.optOut.length;
-
-    // 8. WhatsApp inválidos (números que não existem)
     const whatsapp_invalidos = data.whatsappInexistente.length;
 
-    // 9. Disparos realizados hoje
+    // Disparos realizados hoje
     const hoje = new Date().toISOString().split('T')[0];
     const disparos_hoje = data.disparo.filter(d =>
       d.dateTime_disparo && typeof d.dateTime_disparo === 'string' && d.dateTime_disparo.startsWith(hoje)
     ).length;
 
-    // 10. Conversas ativas (memória de sessão)
+    // Conversas ativas (memória de sessão)
     const conversas_ativas = data.memoria.length;
 
-    // ===== CÁLCULOS REAIS PARA MÉTRICAS FINANCEIRAS =====
+    // Taxa de sucesso = (clientes recuperados / contratos ativos) * 100
+    const taxa_sucesso = contratos_ativos > 0 ?
+      (clientes_recuperados / contratos_ativos) : 0;
 
-    // 11. Inadimplências resolvidas = comprovantes recebidos (pagamentos confirmados)
-    const inadimplencias_resolvidas = comprovantes_recebidos;
+    // ========== NORMALIZAR LEADS PARA KANBAN ==========
 
-    // 12. Taxa de sucesso real = (comprovantes / contratos ativos) * 100
-    const taxa_sucesso = contratos_ativos > 0 ? 
-      (comprovantes_recebidos / contratos_ativos) : 0;
+    // Criar sets de clientes por status para classificação rápida
+    const clientesRecuperadosSet = new Set(
+      data.parcelas.filter(p => p.status_renegociacao === 'RENEGOCIADO').map(p => p.id_cliente)
+    );
+    const clientesPromessaSet = new Set(
+      data.parcelas.filter(p => p.status_parcela && String(p.status_parcela).toLowerCase().includes('promessa')).map(p => p.id_cliente)
+    );
+    const clientesDisparoSet = new Set(
+      data.disparo.filter(d => d.disparo_realizado === true).map(d => d.id_cliente)
+    );
 
-    // 13. Receita recuperada = soma dos valores dos comprovantes
-    // Nota: Precisamos calcular a partir dos pagamentos confirmados
-    // Para agora, usamos o número de comprovantes * valor médio por parcela
-    const valor_medio_parcela = data.parcelas.length > 0 ?
-      data.parcelas.reduce((sum, p) => sum + (Number(p.valor_parcela) || 0), 0) / data.parcelas.length : 0;
-    const receita_recuperada = comprovantes_recebidos * valor_medio_parcela;
+    const leads: Lead[] = data.acompanhamento.map((r) => {
+      const idCliente = r.id_cliente;
+      let status: any = 'NOVO'; // Em Aberto
 
-    // 14. Tempo médio de resolução (em horas)
-    // Calcula a diferença entre data de disparo mais recente e mais antiga
-    let tempo_medio_resolucao = 0;
-    if (data.disparo.length > 1) {
-      const datas = data.disparo
-        .map(d => {
-          const dataStr = d.dateTime_disparo;
-          return dataStr ? new Date(dataStr) : null;
-        })
-        .filter((d): d is Date => d !== null);
-      
-      if (datas.length > 1) {
-        datas.sort((a, b) => a.getTime() - b.getTime());
-        const tempoMs = datas[datas.length - 1].getTime() - datas[0].getTime();
-        tempo_medio_resolucao = Math.round(tempoMs / (1000 * 60 * 60)); // converter para horas
+      // Classificar status baseado no Kanban
+      if (clientesRecuperadosSet.has(idCliente)) {
+        status = 'GANHO'; // Recuperado
+      } else if (clientesPromessaSet.has(idCliente)) {
+        status = 'NEGOCIACAO'; // Promessa de Pagamento
+      } else if (clientesDisparoSet.has(idCliente)) {
+        status = 'EM_CONTATO'; // Em Negociação
       }
-    }
 
-    // Normalizar leads da base de acompanhamento
-    const leads = data.acompanhamento.map((r) => normalizeLead(r, agentId));
+      // Calcular valor devido (soma das parcelas em atraso do cliente)
+      const parcelasCliente = data.parcelas.filter(p =>
+        p.id_cliente === idCliente && p.dias_em_atraso && Number(p.dias_em_atraso) > 0
+      );
+      const valorDevido = parcelasCliente.reduce((sum, p) => sum + parseValorMonetario(p.valor_parcela), 0);
 
-    // Criar eventos de renegociação
-    const events: Event[] = data.renegociacao.map((r) => ({
-      id: String(r.id),
-      tipo: 'LEAD_TRANSBORDADO' as const,
-      lead_id: String(r.id_cliente),
+      const createdAt = toSafeDate(r.created_at);
+
+      return {
+        id: String(r.id),
+        nome: toStr(r.nome_cliente) ?? 'Sem nome',
+        email: '',
+        whatsapp: undefined,
+        telefone: toStr(r.numero_cliente),
+        empresa: undefined,
+        origem: 'Inbound',
+        status: status,
+        agente_atual_id: agentId,
+        tempo_parado: undefined,
+        valor_potencial: Math.round(valorDevido),
+        ultima_interacao: createdAt,
+        created_at: createdAt,
+        updated_at: createdAt,
+      };
+    });
+
+    // ========== CRIAR EVENTOS DE ATIVIDADE RECENTE ==========
+
+    const events: Event[] = atividades_recentes.slice(0, 50).map((ativ: any) => ({
+      id: String(ativ.evento_id),
+      tipo: ativ.tipo === 'mensagem' ? 'MENSAGEM_ENVIADA' :
+            ativ.tipo === 'disparo' ? 'LEAD_TRANSBORDADO' : 'LEAD_CRIADO',
+      lead_id: String(ativ.id_cliente || ativ.evento_id),
       agente_id: agentId,
       metadata: {
-        motivo: 'Renegociação solicitada',
-        loteamento: r.loteamento,
-        descricao_contrato: r.descricao_contrato,
-        dias_em_debito: r.dias_em_debito,
-        vencimento: r.vencimento,
+        tipo_atividade: ativ.tipo,
+        conteudo: ativ.conteudo,
+        meta: ativ.meta,
       },
-      timestamp: toSafeDate(r.aberta_em),
+      timestamp: toSafeDate(ativ.data_hora),
     }));
 
     // Log summary
-    console.log(`[Victor TGV] Contratos: ${contratos_ativos}, Parcelas Atraso: ${parcelas_em_atraso} (${parcelas_criticas} críticas), ` +
-      `Valor Risco: R$ ${valor_em_risco.toLocaleString('pt-BR')}, Taxa Resposta: ${taxa_resposta.toFixed(1)}%, ` +
-      `Renegociações: ${renegociacoes_ativas}, Inadimplências Resolvidas: ${inadimplencias_resolvidas}, Taxa Sucesso: ${(taxa_sucesso * 100).toFixed(1)}%, ` +
-      `Receita Recuperada: R$ ${receita_recuperada.toLocaleString('pt-BR')}, Tempo Médio: ${tempo_medio_resolucao}h`);
+    console.log(`[Victor TGV] Receita Recuperada: R$ ${receita_recuperada_total.toLocaleString('pt-BR')}, ` +
+      `Tempo Médio: ${tempo_medio_resolucao_horas.toFixed(1)}h, ` +
+      `Kanban: ${clientes_recuperados} recuperados, ${clientes_promessa} promessas, ${clientes_em_negociacao} negociação, ${clientes_em_aberto} aberto, ` +
+      `Parcelas Atraso: ${parcelas_em_atraso} (${parcelas_criticas} críticas), ` +
+      `Valor Risco: R$ ${valor_em_risco.toLocaleString('pt-BR')}, Taxa Sucesso: ${(taxa_sucesso * 100).toFixed(1)}%`);
 
     return buildAgentCommon(agentId, 'Victor', leads, events, {
       tipo: 'FINANCEIRO',
       metricas_agregadas: {
         leads_ativos: contratos_ativos,
-        conversoes: comprovantes_recebidos,
-        receita_total: valor_em_risco,
+        conversoes: clientes_recuperados,
+        receita_total: receita_recuperada_total,
         disparos_hoje: disparos_hoje,
+
+        // ===== MÉTRICAS PRINCIPAIS =====
         contratos_ativos: contratos_ativos,
+        receita_recuperada_total: receita_recuperada_total,
+        receita_por_dia: receita_por_dia,
+        tempo_medio_resolucao_horas: tempo_medio_resolucao_horas,
+        taxa_sucesso: taxa_sucesso,
+
+        // ===== KANBAN =====
+        clientes_recuperados: clientes_recuperados,
+        clientes_promessa: clientes_promessa,
+        clientes_em_negociacao: clientes_em_negociacao,
+        clientes_em_aberto: clientes_em_aberto,
+
+        // ===== PARCELAS =====
         parcelas_em_atraso: parcelas_em_atraso,
         parcelas_criticas: parcelas_criticas,
         valor_em_risco: valor_em_risco,
+
+        // ===== COMUNICAÇÃO =====
         taxa_resposta: taxa_resposta,
+        mensagens_enviadas: mensagens_enviadas,
+        mensagens_recebidas: mensagens_recebidas,
+
+        // ===== GESTÃO =====
         renegociacoes_ativas: renegociacoes_ativas,
         comprovantes_recebidos: comprovantes_recebidos,
         opt_outs: opt_outs,
         whatsapp_invalidos: whatsapp_invalidos,
         conversas_ativas: conversas_ativas,
-        mensagens_enviadas: mensagens_enviadas,
-        mensagens_recebidas: mensagens_recebidas,
-        // ===== MÉTRICAS REAIS CALCULADAS =====
-        inadimplencias_resolvidas: inadimplencias_resolvidas,
-        taxa_sucesso: taxa_sucesso,
-        receita_recuperada: receita_recuperada,
-        tempo_medio_resolucao: tempo_medio_resolucao,
       },
     });
   },
