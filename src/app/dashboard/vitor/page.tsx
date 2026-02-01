@@ -125,6 +125,7 @@ export default function VictorPage() {
   const receitaRecuperadaTotal = Number(metrics.receita_recuperada_total) || 0;
   const clientesRecuperados = Number(metrics.clientes_recuperados) || 0;
   const tempoMedioHorasRaw = Number(metrics.tempo_medio_horas) || 0;
+  const tempoMedioMinutos = Number(metrics.tempo_medio_minutos) || 0;
   const receitaPorDia = metrics.receita_recuperada_por_dia || [];
   const totalParcelasRenegociadas = Number(metrics.total_parcelas_renegociadas) || 0;
 
@@ -134,7 +135,7 @@ export default function VictorPage() {
   const taxaSucesso = Number(metrics.taxa_sucesso) || 0;
 
   const tempoMedioHoras = (tempoMedioHorasRaw > 0 && tempoMedioHorasRaw <= 720) ? tempoMedioHorasRaw : 0;
-  const tempoMedioValido = tempoMedioHoras > 0;
+  const tempoMedioValido = tempoMedioHoras > 0 || tempoMedioMinutos > 0;
 
   const funnelData = [
     { stage: 'Em Aberto', value: clientesEmAberto, fill: '#9ca3af' },
@@ -157,7 +158,8 @@ export default function VictorPage() {
     return 'text-red-600';
   };
 
-  const formatTempoMedio = (horas: number) => {
+  const formatTempoMedio = (horas: number, minutos?: number) => {
+    if (minutos != null && minutos > 0 && minutos < 60) return `${minutos} min`;
     if (horas >= 24) {
       const dias = Math.round(horas / 24);
       return `${dias} ${dias === 1 ? 'dia' : 'dias'}`;
@@ -233,7 +235,7 @@ export default function VictorPage() {
               {tempoMedioValido ? (
                 <>
                   <p className={`mt-2 text-3xl font-semibold ${getTempoMedioColor(tempoMedioHoras)}`}>
-                    {formatTempoMedio(tempoMedioHoras)}
+                    {formatTempoMedio(tempoMedioHoras, tempoMedioMinutos)}
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
                     {tempoMedioHoras < 48 ? 'Excelente' : tempoMedioHoras < 96 ? 'Bom' : 'Atenção necessária'}

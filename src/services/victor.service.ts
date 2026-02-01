@@ -223,12 +223,20 @@ export const victorService: AgentService = {
     console.log('[VICTOR DEBUG] Receita Diária RPC:', receitaDiariaRes.data?.length, 'dias');
     const receita_por_dia = receitaDiariaRes.data || [];
 
-    // 2. TEMPO MÉDIO DE RESOLUÇÃO (em horas)
-    const tempoMedioRes = await sb.rpc('get_tempo_medio_resolucao');
-    console.log('[VICTOR DEBUG] Tempo Médio RPC:', tempoMedioRes);
-    console.log('[VICTOR DEBUG] Tempo Médio RAW VALUE:', tempoMedioRes.data?.[0]?.tempo_medio_horas);
-    const tempo_medio_resolucao_horas = Number(tempoMedioRes.data?.[0]?.tempo_medio_horas) || 0;
-    console.log('[VICTOR DEBUG] Tempo Médio PARSED:', tempo_medio_resolucao_horas);
+    // 2. TEMPO MÉDIO DE RESOLUÇÃO (RPC retorna texto: "Tempo Médio de Resolução: X minutos" ou "sem dados")
+    const tempoMedioRes = await sb.rpc('get_tempo_medio_resolucao', {});
+    const tempoMedioText =
+      typeof tempoMedioRes.data === 'string'
+        ? tempoMedioRes.data
+        : Array.isArray(tempoMedioRes.data) && tempoMedioRes.data[0] != null
+          ? (typeof (tempoMedioRes.data[0] as any) === 'string'
+            ? (tempoMedioRes.data[0] as string)
+            : (tempoMedioRes.data[0] as any)?.get_tempo_medio_resolucao ?? '')
+          : '';
+    const minutosMatch = tempoMedioText.match(/(\d+)\s*minutos?/i);
+    const tempo_medio_resolucao_minutos = minutosMatch ? Number(minutosMatch[1]) : 0;
+    const tempo_medio_resolucao_horas = tempo_medio_resolucao_minutos / 60;
+    console.log('[VICTOR DEBUG] Tempo Médio RPC (texto):', tempoMedioText, '→', tempo_medio_resolucao_horas.toFixed(2), 'h');
 
     // 3. FLUXO DE TRABALHO (Kanban - contagem por status)
     const kanbanRes = await sb.rpc('get_kanban_status');
@@ -441,6 +449,7 @@ export const victorService: AgentService = {
       receita_recuperada_total: receita_recuperada_total,
       receita_recuperada_por_dia: receita_por_dia,
       tempo_medio_horas: tempo_medio_resolucao_horas,
+      tempo_medio_minutos: tempo_medio_resolucao_minutos,
       taxa_sucesso: taxa_sucesso,
         // Chaves alinhadas com SQL/relatórios
         total_parcelas_renegociadas: data.parcelas.filter(p => p.status_renegociacao === 'RENEGOCIADO').length,
