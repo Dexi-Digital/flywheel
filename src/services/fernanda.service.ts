@@ -121,7 +121,8 @@ export const fernandaService: AgentService = {
     };
 
     data.curadoria.forEach(c => {
-      const reasoning = (c.internal_reasoning || '').toLowerCase();
+      if (!c.internal_reasoning || typeof c.internal_reasoning !== 'string') return;
+      const reasoning = c.internal_reasoning.toLowerCase();
       if (reasoning.includes('preço') || reasoning.includes('caro')) motivosPerda.preco++;
       else if (reasoning.includes('produto') || reasoning.includes('veículo')) motivosPerda.produto++;
       else if (reasoning.includes('atendimento') || reasoning.includes('vendedor')) motivosPerda.atendimento++;
@@ -131,7 +132,7 @@ export const fernandaService: AgentService = {
 
     // 3. Leads que reabriram conversa (mudança de contexto)
     const leadsReabertos = data.memoria.filter(m =>
-      m.memoria_lead && m.memoria_lead.toLowerCase().includes('retomou contato')
+      m.memoria_lead && typeof m.memoria_lead === 'string' && m.memoria_lead.toLowerCase().includes('retomou contato')
     ).length;
 
     // 4. Intervenções humanas (handoff para vendedor)
@@ -139,7 +140,7 @@ export const fernandaService: AgentService = {
 
     // 5. Análise de qualidade (leads com análise completa)
     const leadsAnalisados = data.curadoria.filter(c =>
-      c.internal_reasoning && c.internal_reasoning.length > 50
+      c.internal_reasoning && typeof c.internal_reasoning === 'string' && c.internal_reasoning.length > 50
     ).length;
 
     // Log summary

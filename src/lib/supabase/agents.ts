@@ -40,6 +40,15 @@ export type AgentsConfig = {
   export function getTenantConfig(agentId: string): AgentsConfig {
     const cfg = AGENTS_ACCESS[agentId];
     if (!cfg) throw new Error(`Unknown agentId: ${agentId}`);
+
+    // Validar se as variáveis de ambiente estão configuradas
+    if (!cfg.supabaseUrl || cfg.supabaseUrl === '') {
+      throw new Error(`Missing SUPABASE_URL for ${agentId}. Please configure environment variables in Vercel.`);
+    }
+    if (!cfg.anonKey || cfg.anonKey === '') {
+      throw new Error(`Missing SUPABASE_ANON_KEY for ${agentId}. Please configure environment variables in Vercel.`);
+    }
+
     return cfg;
   }
   

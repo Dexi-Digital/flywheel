@@ -140,10 +140,10 @@ export const aliceService: AgentService = {
 
     // 3. Taxa de resposta (engajamento)
     const totalMensagensEnviadas = data.chat.filter(c =>
-      c.message && !c.message.startsWith('[USER]')
+      c.message && typeof c.message === 'string' && !c.message.startsWith('[USER]')
     ).length;
     const respostasRecebidas = data.chat.filter(c =>
-      c.message && c.message.startsWith('[USER]')
+      c.message && typeof c.message === 'string' && c.message.startsWith('[USER]')
     ).length;
     const taxaResposta = totalMensagensEnviadas > 0 ?
       (respostasRecebidas / totalMensagensEnviadas) * 100 : 0;
@@ -153,10 +153,10 @@ export const aliceService: AgentService = {
 
     // 5. Análise de sentimento das respostas
     const respostasPositivas = data.curadoria.filter(c =>
-      c.internal_reasoning && c.internal_reasoning.toLowerCase().includes('interesse')
+      c.internal_reasoning && typeof c.internal_reasoning === 'string' && c.internal_reasoning.toLowerCase().includes('interesse')
     ).length;
     const respostasNegativas = data.curadoria.filter(c =>
-      c.internal_reasoning && (
+      c.internal_reasoning && typeof c.internal_reasoning === 'string' && (
         c.internal_reasoning.toLowerCase().includes('não tenho interesse') ||
         c.internal_reasoning.toLowerCase().includes('não quero')
       )

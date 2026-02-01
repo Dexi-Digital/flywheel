@@ -13,10 +13,11 @@ function toStr(v: unknown): string | undefined {
 async function fetchLuisData(sb: SupabaseClient) {
   // Leads CRM (base principal com detalhes de veículo)
   // Nota: A coluna é "Nome" (maiúsculo) no banco de dados
+  // Email não existe na tabela, removido da query
   const leadsPromise = sb
     .from('Leads CRM')
     .select(`
-      id,created_at,Nome,email,telefone,origem,status,ultima_interacao,valor_potencial,
+      id,created_at,Nome,telefone,origem,status,ultima_interacao,valor_potencial,
       "Tipo de Atendimento",message,contato_realizado,
       id_veiculo,url_veiculo,marca_veiculo,modelo_veiculo,versao_veiculo,ano_veiculo,cor_veiculo,condicao_veiculo
     `)
