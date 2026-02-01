@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { KanbanBoard } from '@/components/kanban/kanban-board';
+import { VictorKanban } from '@/components/kanban/victor-kanban';
 import { buildService } from '@/services/factory';
 import { formatCurrency } from '@/lib/utils';
 import { DollarSign, Users, Clock, MessageSquare, Send, UserPlus, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
@@ -18,28 +18,49 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import {
+  fetchKanbanData,
+  getEmptyKanbanResponse,
+  type KanbanApiResponse
+} from '@/services/kanban-api.service';
 
 export default function VictorPage() {
   const [agent, setAgent] = useState<Agent | null>(null);
+  const [kanbanData, setKanbanData] = useState<KanbanApiResponse>(getEmptyKanbanResponse());
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadAgentData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const service = buildService('agent-victor');
-      const agentData = await service.getAgent('agent-victor');
 
-      console.log('🔍 Victor Agent carregado:', agentData);
-      console.log('📊 Métricas:', agentData.metricas_agregadas);
+      // Carregar dados do agente e Kanban em paralelo
+      const [agentData, kanban] = await Promise.all([
+        buildService('agent-victor').getAgent('agent-victor'),
+        fetchKanbanData(),
+      ]);
 
       setAgent(agentData);
+      setKanbanData(kanban);
     } catch (err) {
       console.error('❌ Erro ao carregar dados do Victor:', err);
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados do agente');
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      const kanban = await fetchKanbanData(true); // forceRefresh
+      setKanbanData(kanban);
+    } catch (err) {
+      console.error('❌ Erro ao atualizar Kanban:', err);
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -143,7 +164,6 @@ export default function VictorPage() {
     return `${Math.round(horas)}h`;
   };
 
-  const leads = agent.leads || [];
   const events = agent.events || [];
 
   return (
@@ -334,13 +354,46 @@ export default function VictorPage() {
         </Card>
       </div>
 
-      {/* 4. KANBAN BOARD */}
+      {/* 4. KANBAN BOARD - Via Edge Function */}
       <div className="mt-6">
-        <h2 className="text-xl font-semibold mb-4">Fluxo de Trabalho</h2>
-        <KanbanBoard
-          leads={leads.map(lead => ({ ...lead, agente: agent }))}
-          agentType="FINANCEIRO"
-        />
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Fluxo de Trabalho</h2>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        </div>
+
+        {/* KPI Cards do Kanban */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {(['Recuperado', 'Promessa de Pagamento', 'Em Negociacao', 'Em Aberto'] as const).map((stage) => {
+            const stageMeta = kanbanData.meta[stage];
+            const colors: Record<string, string> = {
+              'Recuperado': 'text-green-600 bg-green-50 dark:bg-green-900/20',
+              'Promessa de Pagamento': 'text-purple-600 bg-purple-50 dark:bg-purple-900/20',
+              'Em Negociacao': 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20',
+              'Em Aberto': 'text-gray-600 bg-gray-50 dark:bg-gray-800',
+            };
+            return (
+              <Card key={stage} className={colors[stage]}>
+                <div className="p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide opacity-75">
+                    {stage === 'Em Negociacao' ? 'Em Negociação' : stage}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">{stageMeta.count}</p>
+                  <p className="text-xs mt-1">{formatCurrency(stageMeta.total_recuperado)}</p>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Kanban Visual */}
+        <VictorKanban data={kanbanData} />
       </div>
 
       {/* 5. FEED DE ATIVIDADE RECENTE */}
