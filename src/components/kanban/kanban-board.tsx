@@ -10,6 +10,8 @@ import { AgentType } from '@/types/database.types';
 interface KanbanBoardProps {
   leads: LeadWithAgent[];
   agentType?: AgentType;
+  // optional server-provided summary counts: label -> count
+  summaryCounts?: Record<string, number>;
 }
 
 const DEFAULT_COLUMNS: { status: LeadStatus; label: string; color: string }[] = [
@@ -36,7 +38,7 @@ const COLLECTION_COLUMNS: { status: LeadStatus; label: string; color: string }[]
   { status: 'GANHO', label: 'Recuperado', color: 'bg-green-100 dark:bg-green-900/20' },
 ];
 
-export function KanbanBoard({ leads, agentType }: KanbanBoardProps) {
+export function KanbanBoard({ leads, agentType, summaryCounts }: KanbanBoardProps) {
   const columns = useMemo(() => {
     if (agentType === 'SDR' || agentType === 'BDR') return SALES_COLUMNS;
     if (agentType === 'FINANCEIRO') return COLLECTION_COLUMNS;
@@ -62,18 +64,25 @@ export function KanbanBoard({ leads, agentType }: KanbanBoardProps) {
 
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
-      {columns.map((column) => (
-        <KanbanColumn
-          key={column.status}
-          title={column.label}
-          count={leadsByStatus[column.status].length}
-          color={column.color}
-        >
-          {leadsByStatus[column.status].map((lead) => (
-            <KanbanCard key={lead.id} lead={lead} />
-          ))}
-        </KanbanColumn>
-      ))}
+      {columns.map((column) => {
+        const label = column.label;
+        const count = summaryCounts && typeof summaryCounts[label] === 'number'
+          ? summaryCounts[label]
+          : leadsByStatus[column.status].length;
+
+        return (
+          <KanbanColumn
+            key={column.status}
+            title={label}
+            count={count}
+            color={column.color}
+          >
+            {leadsByStatus[column.status].map((lead) => (
+              <KanbanCard key={lead.id} lead={lead} />
+            ))}
+          </KanbanColumn>
+        );
+      })}
     </div>
   );
 }

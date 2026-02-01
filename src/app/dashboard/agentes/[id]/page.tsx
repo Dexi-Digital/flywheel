@@ -151,13 +151,40 @@ export default function AgentPage({ params }: PageProps) {
           { title: 'Receita Recuperada', value: formatCurrency(agent.metricas_agregadas.receita_recuperada || 0), icon: <DollarSign className="h-5 w-5" /> },
           { title: 'CAC Evitado', value: formatCurrency((agent.metricas_agregadas.conversoes || 0) * 1500), icon: <Zap className="h-5 w-5" /> },
         ];
-      case 'FINANCEIRO':
+      case 'FINANCEIRO': {
+        // support multiple possible metric keys coming from SQL/backend
+        const inadimplencias = (
+          agent.metricas_agregadas.total_parcelas_renegociadas ||
+          agent.metricas_agregadas.inadimplencias_resolvidas ||
+          agent.metricas_agregadas.comprovantes_recebidos ||
+          0
+        );
+
+        const tempoMedio = (
+          agent.metricas_agregadas.tempo_medio_horas ||
+          agent.metricas_agregadas.tempo_medio_resolucao ||
+          0
+        );
+
+        const taxaRecuperacao = (
+          agent.metricas_agregadas.taxa_sucesso ||
+          (agent.metricas_agregadas.taxa_sucesso_percentual ? agent.metricas_agregadas.taxa_sucesso_percentual / 100 : undefined) ||
+          0
+        );
+
+        const receitaRecuperada = (
+          agent.metricas_agregadas.receita_recuperada_total ||
+          agent.metricas_agregadas.receita_recuperada ||
+          0
+        );
+
         return [
-          { title: 'Inadimplências Resolvidas', value: agent.metricas_agregadas.inadimplencias_resolvidas || 0, icon: <RefreshCcw className="h-5 w-5" /> },
-          { title: 'Tempo Médio Resolução', value: `${agent.metricas_agregadas.tempo_medio_resolucao || 0}h`, icon: <Clock className="h-5 w-5" /> },
-          { title: 'Taxa de Recuperação', value: `${((agent.metricas_agregadas.taxa_sucesso || 0) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
-          { title: 'Receita Recuperada', value: formatCurrency(agent.metricas_agregadas.receita_recuperada || 0), icon: <DollarSign className="h-5 w-5" /> },
+          { title: 'Inadimplências Resolvidas', value: inadimplencias, icon: <RefreshCcw className="h-5 w-5" /> },
+          { title: 'Tempo Médio Resolução', value: `${tempoMedio}h`, icon: <Clock className="h-5 w-5" /> },
+          { title: 'Taxa de Recuperação', value: `${(taxaRecuperacao * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
+          { title: 'Receita Recuperada', value: formatCurrency(receitaRecuperada), icon: <DollarSign className="h-5 w-5" /> },
         ];
+      }
       default:
         return [
           { title: 'Leads Ativos', value: agent.leads.length, icon: <Users className="h-5 w-5" /> },
@@ -377,10 +404,24 @@ export default function AgentPage({ params }: PageProps) {
           <CardTitle>Fluxo de Trabalho (Kanban)</CardTitle>
         </CardHeader>
         <CardContent>
-          <KanbanBoard 
-            leads={agent.leads.map(l => ({ ...l, agente: agent }))} 
-            agentType={agent.tipo}
-          />
+            {
+              // summary_counts may be stored in metricas_agregadas but its type is not strongly typed.
+              // Coerce only if it's an object, otherwise use fallback counts.
+            }
+            <KanbanBoard
+              leads={agent.leads.map(l => ({ ...l, agente: agent }))}
+              agentType={agent.tipo}
+              summaryCounts={(() => {
+                const serverCounts = (agent.metricas_agregadas as any).summary_counts;
+                if (serverCounts && typeof serverCounts === 'object') return serverCounts as Record<string, number>;
+                return {
+                  'Recuperado': agent.metricas_agregadas.total_parcelas_renegociadas || agent.metricas_agregadas.inadimplencias_resolvidas || 0,
+                  'Promessa de Pagamento': agent.metricas_agregadas.promessa_pagamento || 0,
+                  'Em Negociação': agent.metricas_agregadas.em_negociacao || 0,
+                  'Em Aberto': agent.metricas_agregadas.em_aberto || 0,
+                };
+              })()}
+            />
         </CardContent>
       </Card>
 

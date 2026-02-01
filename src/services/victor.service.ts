@@ -373,15 +373,21 @@ export const victorService: AgentService = {
         // ===== MÉTRICAS PRINCIPAIS =====
         contratos_ativos: contratos_ativos,
         receita_recuperada_total: receita_recuperada_total,
-        receita_por_dia: receita_por_dia,
-        tempo_medio_resolucao_horas: tempo_medio_resolucao_horas,
+        receita_recuperada_por_dia: receita_por_dia,
+        tempo_medio_horas: tempo_medio_resolucao_horas,
         taxa_sucesso: taxa_sucesso,
+        // Chaves alinhadas com SQL/relatórios
+        total_parcelas_renegociadas: data.parcelas.filter(p => p.status_renegociacao === 'RENEGOCIADO').length,
+        clientes_com_renegociacao: clientesRecuperadosSet.size,
+        inadimplencias_resolvidas: comprovantes_recebidos,
 
         // ===== KANBAN =====
         clientes_recuperados: clientes_recuperados,
         clientes_promessa: clientes_promessa,
         clientes_em_negociacao: clientes_em_negociacao,
         clientes_em_aberto: clientes_em_aberto,
+        // Fornecer mapeamento direto para a UI consumir os counts do servidor
+        summary_counts: kanban_counts,
 
         // ===== PARCELAS =====
         parcelas_em_atraso: parcelas_em_atraso,
