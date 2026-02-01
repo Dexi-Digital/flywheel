@@ -31,6 +31,13 @@ async function fetchVictorData(sb: SupabaseClient) {
     .order('data_vencimento', { ascending: true })
     .limit(100);
 
+  // Parcelas RENEGOCIADAS (para coluna "Em Negociação" do Kanban)
+  const parcelasRenegociadasPromise = sb
+    .from('tgv_parcela')
+    .select('id,id_cliente,valor_parcela,status_renegociacao')
+    .eq('status_renegociacao', 'RENEGOCIADO')
+    .limit(500);
+
   // Renegociações ativas
   const renegociacaoPromise = sb
     .from('tgv_renegociacao')
@@ -109,6 +116,7 @@ async function fetchVictorData(sb: SupabaseClient) {
   const [
     acompanhamentoRes,
     parcelasRes,
+    parcelasRenegociadasRes,
     renegociacaoRes,
     disparoRes,
     mensagensRes,
@@ -122,6 +130,7 @@ async function fetchVictorData(sb: SupabaseClient) {
   ] = await Promise.all([
     acompanhamentoPromise,
     parcelasPromise,
+    parcelasRenegociadasPromise,
     renegociacaoPromise,
     disparoPromise,
     mensagensPromise,
@@ -136,6 +145,7 @@ async function fetchVictorData(sb: SupabaseClient) {
 
   if (acompanhamentoRes.error) throw new Error(`acompanhamento_leads: ${acompanhamentoRes.error.message}`);
   if (parcelasRes.error) console.warn(`tgv_parcela (non-critical): ${parcelasRes.error.message}`);
+  if (parcelasRenegociadasRes.error) console.warn(`tgv_parcela RENEGOCIADO (non-critical): ${parcelasRenegociadasRes.error.message}`);
   if (renegociacaoRes.error) console.warn(`tgv_renegociacao (non-critical): ${renegociacaoRes.error.message}`);
   if (disparoRes.error) console.warn(`controle_disparo (non-critical): ${disparoRes.error.message}`);
   if (mensagensRes.error) console.warn(`tgv_mensagem (non-critical): ${mensagensRes.error.message}`);
@@ -150,6 +160,7 @@ async function fetchVictorData(sb: SupabaseClient) {
   return {
     acompanhamento: (acompanhamentoRes.data ?? []) as Record<string, any>[],
     parcelas: (parcelasRes.data ?? []) as Record<string, any>[],
+    parcelasRenegociadas: (parcelasRenegociadasRes.data ?? []) as Record<string, any>[],
     renegociacao: (renegociacaoRes.data ?? []) as Record<string, any>[],
     disparo: (disparoRes.data ?? []) as Record<string, any>[],
     mensagens: (mensagensRes.data ?? []) as Record<string, any>[],
@@ -261,8 +272,21 @@ export const victorService: AgentService = {
     }
 
     const clientes_recuperados = Number(kanban_counts['Recuperado'] || 0);
-    const clientes_promessa = Number(kanban_counts['Promessa de Pagamento'] || 0);
-    const clientes_em_negociacao = Number(kanban_counts['Em Negociacao'] || 0);
+    // "Em Negociação" agora vem das parcelas com status_renegociacao = 'RENEGOCIADO'
+    // Contar clientes únicos (um cliente pode ter várias parcelas renegociadas)
+    const parcelasRenegociadas = data.parcelasRenegociadas || [];
+    const clientesEmNegociacaoSet = new Set(
+      parcelasRenegociadas.map((p: any) => String(p.id_cliente || '')).filter((id: string) => id !== '')
+    );
+    const clientes_em_negociacao = clientesEmNegociacaoSet.size;
+    // Calcular valor total das parcelas renegociadas
+    const valor_total_em_negociacao = parcelasRenegociadas.reduce(
+      (sum: number, p: any) => sum + (Number(p.valor_parcela) || 0),
+      0
+    );
+    console.log('[VICTOR DEBUG] Parcelas RENEGOCIADO:', parcelasRenegociadas.length,
+      '| Clientes únicos:', clientes_em_negociacao,
+      '| Valor total:', valor_total_em_negociacao);
     const clientes_em_aberto = Number(kanban_counts['Em Aberto'] || 0);
 
     // 4. ATIVIDADE RECENTE (últimos 100 eventos combinados)
@@ -434,7 +458,7 @@ export const victorService: AgentService = {
     // Log summary
     console.log(`[Vitor TGV] Receita Recuperada: R$ ${receita_recuperada_total.toLocaleString('pt-BR')}, ` +
       `Tempo Médio: ${tempo_medio_resolucao_horas.toFixed(1)}h, ` +
-      `Kanban: ${clientes_recuperados} recuperados, ${clientes_promessa} promessas, ${clientes_em_negociacao} negociação, ${clientes_em_aberto} aberto, ` +
+      `Kanban: ${clientes_recuperados} recuperados, ${clientes_em_negociacao} negociação (RENEGOCIADO), ${clientes_em_aberto} aberto, ` +
       `Parcelas Atraso: ${parcelas_em_atraso} (${parcelas_criticas} críticas), ` +
       `Valor Risco: R$ ${valor_em_risco.toLocaleString('pt-BR')}, Taxa Sucesso: ${(taxa_sucesso * 100).toFixed(1)}%`);
 
@@ -458,8 +482,8 @@ export const victorService: AgentService = {
 
         // ===== KANBAN =====
         clientes_recuperados: clientes_recuperados,
-        clientes_promessa: clientes_promessa,
-        clientes_em_negociacao: clientes_em_negociacao,
+        clientes_em_negociacao: clientes_em_negociacao, // Agora vem de tgv_parcela com status_renegociacao = 'RENEGOCIADO'
+        valor_total_em_negociacao: valor_total_em_negociacao, // Valor total das parcelas renegociadas
         clientes_em_aberto: clientes_em_aberto,
         // Fornecer mapeamento direto para a UI consumir os counts do servidor
         summary_counts: kanban_counts,

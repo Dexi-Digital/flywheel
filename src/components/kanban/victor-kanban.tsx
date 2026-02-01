@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import { formatCurrency, maskCpf, maskNameForPrivacy } from '@/lib/utils';
 import type { KanbanApiResponse, KanbanClient, KanbanStage } from '@/services/kanban-api.service';
 
@@ -11,7 +10,6 @@ interface VictorKanbanProps {
 const STAGES: { key: KanbanStage; label: string; color: string; bgColor: string }[] = [
   { key: 'Em Aberto', label: 'Em Aberto', color: 'text-gray-600', bgColor: 'bg-gray-100 dark:bg-gray-800' },
   { key: 'Em Negociacao', label: 'Em Negociação', color: 'text-yellow-600', bgColor: 'bg-yellow-50 dark:bg-yellow-900/20' },
-  { key: 'Promessa de Pagamento', label: 'Promessa de Pagamento', color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-900/20' },
   { key: 'Recuperado', label: 'Recuperado', color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-900/20' },
 ];
 

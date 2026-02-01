@@ -18,19 +18,17 @@ export interface KanbanMeta {
 export interface KanbanApiResponse {
   kanban: {
     'Recuperado': KanbanClient[];
-    'Promessa de Pagamento': KanbanClient[];
     'Em Negociacao': KanbanClient[];
     'Em Aberto': KanbanClient[];
   };
   meta: {
     'Recuperado': KanbanMeta;
-    'Promessa de Pagamento': KanbanMeta;
     'Em Negociacao': KanbanMeta;
     'Em Aberto': KanbanMeta;
   };
 }
 
-export type KanbanStage = 'Recuperado' | 'Promessa de Pagamento' | 'Em Negociacao' | 'Em Aberto';
+export type KanbanStage = 'Recuperado' | 'Em Negociacao' | 'Em Aberto';
 
 // Cache em memória
 let cachedData: KanbanApiResponse | null = null;
@@ -40,8 +38,8 @@ const CACHE_TTL_MS = 60 * 1000; // 60 segundos
 // Endpoint: RPC do projeto TGV/Vitor (get_kanban_status_json_with_meta)
 const KANBAN_ENDPOINT = 'https://wwiwuorpmltzutzisgin.supabase.co/rest/v1/rpc/get_kanban_status_json_with_meta';
 
-// Status garantidos (mesmo se vazios)
-const STATUSES: KanbanStage[] = ['Recuperado', 'Promessa de Pagamento', 'Em Negociacao', 'Em Aberto'];
+// Status garantidos (mesmo se vazios) - Removido "Promessa de Pagamento"
+const STATUSES: KanbanStage[] = ['Recuperado', 'Em Negociacao', 'Em Aberto'];
 
 /**
  * Chave anon do projeto do Vitor (TGV). O Kanban usa esse projeto.
@@ -199,13 +197,11 @@ export function getEmptyKanbanResponse(): KanbanApiResponse {
   return {
     kanban: {
       'Recuperado': [],
-      'Promessa de Pagamento': [],
       'Em Negociacao': [],
       'Em Aberto': [],
     },
     meta: {
       'Recuperado': { count: 0, total_recuperado: 0 },
-      'Promessa de Pagamento': { count: 0, total_recuperado: 0 },
       'Em Negociacao': { count: 0, total_recuperado: 0 },
       'Em Aberto': { count: 0, total_recuperado: 0 },
     },
@@ -216,8 +212,8 @@ export function getEmptyKanbanResponse(): KanbanApiResponse {
  * Calcula totais globais a partir dos metadados
  */
 export function calculateTotals(meta: KanbanApiResponse['meta']) {
-  const stages: KanbanStage[] = ['Recuperado', 'Promessa de Pagamento', 'Em Negociacao', 'Em Aberto'];
-  
+  const stages: KanbanStage[] = ['Recuperado', 'Em Negociacao', 'Em Aberto'];
+
   let totalClients = 0;
   let totalRecovered = 0;
 
