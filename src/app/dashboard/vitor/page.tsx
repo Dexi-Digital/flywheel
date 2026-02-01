@@ -45,6 +45,21 @@ export default function VictorPage() {
     const agentData = agentResult.status === 'fulfilled' ? agentResult.value : null;
     const kanban = kanbanResult.status === 'fulfilled' ? kanbanResult.value : getEmptyKanbanResponse();
 
+    // Mesclar dados de "Em Negociação" do agente (tgv_parcela RENEGOCIADO) com o Kanban
+    if (agentData?.metricas_agregadas) {
+      const metrics = agentData.metricas_agregadas;
+      const clientesEmNegociacao = Number(metrics.clientes_em_negociacao) || 0;
+      const valorEmNegociacao = Number(metrics.valor_total_em_negociacao) || 0;
+
+      // Sobrescrever "Em Negociação" com dados de tgv_parcela RENEGOCIADO
+      kanban.meta['Em Negociacao'] = {
+        count: clientesEmNegociacao,
+        total_recuperado: valorEmNegociacao,
+      };
+      console.log('[Vitor] Em Negociação atualizado com dados de tgv_parcela RENEGOCIADO:',
+        clientesEmNegociacao, 'clientes, R$', valorEmNegociacao);
+    }
+
     setAgent(agentData);
     setKanbanData(kanban);
     setKanbanLoadFailed(kanbanResult.status === 'rejected');
