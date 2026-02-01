@@ -46,7 +46,7 @@ const KANBAN_ENDPOINT = 'https://wwiwuorpmltzutzisgin.supabase.co/rest/v1/rpc/ge
  */
 function getKanbanAnonKey(): string {
   return (
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VITOR ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     ''
   );
@@ -67,7 +67,7 @@ export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiRe
   const anonKey = getKanbanAnonKey();
   if (!anonKey) {
     console.error(
-      '[KanbanAPI] NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR não definida. Defina na Vercel e faça redeploy (NEXT_PUBLIC_* é embutida no build).'
+      '[KanbanAPI] NEXT_PUBLIC_SUPABASE_ANON_KEY_VITOR não definida. Defina na Vercel e faça redeploy (NEXT_PUBLIC_* é embutida no build).'
     );
   }
 
@@ -100,7 +100,7 @@ export async function fetchKanbanData(forceRefresh = false): Promise<KanbanApiRe
   // Tratar erros de autenticação
   if (response.status === 401 || response.status === 403) {
     throw new Error(
-      'Erro de autenticação no Kanban. Verifique se NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR está definida na Vercel e faça redeploy.'
+      'Erro de autenticação no Kanban. Verifique se NEXT_PUBLIC_SUPABASE_ANON_KEY_VITOR está definida na Vercel e faça redeploy.'
     );
   }
 

@@ -31,8 +31,8 @@ export type AgentsConfig = {
       context: 'devforaiagents',
     },
     'agent-vitor': {
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_VICTOR ?? '',
-      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR ?? '',
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_VITOR ?? '',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VITOR ?? '',
       context: 'tgvempreendimentos',
     },
   };
@@ -44,12 +44,12 @@ export type AgentsConfig = {
     // Validar se as variáveis de ambiente estão configuradas (NEXT_PUBLIC_* são embutidas no build — é necessário redeploy após adicionar na Vercel)
     if (!cfg.supabaseUrl || cfg.supabaseUrl === '') {
       throw new Error(
-        `Missing SUPABASE URL for ${agentId}. Configure NEXT_PUBLIC_SUPABASE_URL_* in Vercel (e.g. NEXT_PUBLIC_SUPABASE_URL_VICTOR for agent-vitor) and redeploy.`
+        `Missing SUPABASE URL for ${agentId}. Configure NEXT_PUBLIC_SUPABASE_URL_* in Vercel (e.g. NEXT_PUBLIC_SUPABASE_URL_VITOR for agent-vitor) and redeploy.`
       );
     }
     if (!cfg.anonKey || cfg.anonKey === '') {
       throw new Error(
-        `Missing SUPABASE ANON KEY for ${agentId}. Configure NEXT_PUBLIC_SUPABASE_ANON_KEY_* in Vercel (e.g. NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR for agent-vitor) and redeploy.`
+        `Missing SUPABASE ANON KEY for ${agentId}. Configure NEXT_PUBLIC_SUPABASE_ANON_KEY_* in Vercel (e.g. NEXT_PUBLIC_SUPABASE_ANON_KEY_VITOR for agent-vitor) and redeploy.`
       );
     }
 
