@@ -435,19 +435,49 @@ export default function VictorPage() {
           {events.length > 0 ? (
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
               {events.slice(0, 10).map((event, idx) => {
-                const eventType = String(event.tipo || 'lead');
-                const eventContent = (event as any).descricao || (event as any).titulo || `Evento #${idx + 1}`;
+                // Extrair tipo da atividade do metadata
+                const meta = (event as any).metadata || {};
+                const tipoAtividade = meta.tipo_atividade || 'lead';
+                const conteudo = meta.conteudo;
+                const metaInfo = meta.meta; // direção da mensagem ou status do disparo
+                const leadId = event.lead_id;
                 const eventDate = event.timestamp ? new Date(event.timestamp) : new Date();
 
+                // Construir descrição baseada no tipo
+                let eventContent = '';
+                let eventIcon = <UserPlus className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />;
+                let badgeColor = 'bg-green-100 text-green-700';
+
+                if (tipoAtividade === 'mensagem') {
+                  eventIcon = <MessageSquare className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />;
+                  badgeColor = 'bg-blue-100 text-blue-700';
+                  const direcao = metaInfo === 'entrada' ? '📥 Recebida' : '📤 Enviada';
+                  eventContent = conteudo
+                    ? `${direcao}: ${String(conteudo).substring(0, 80)}${String(conteudo).length > 80 ? '...' : ''}`
+                    : `Mensagem ${direcao.toLowerCase()}`;
+                } else if (tipoAtividade === 'disparo') {
+                  eventIcon = <Send className="h-5 w-5 text-purple-500 flex-shrink-0 mt-0.5" />;
+                  badgeColor = 'bg-purple-100 text-purple-700';
+                  const status = metaInfo === 'REALIZADO' ? '✅ Realizado' : '⏳ Pendente';
+                  eventContent = `Disparo ${status} - Cliente ${leadId || 'N/A'}`;
+                } else {
+                  // lead
+                  eventContent = conteudo
+                    ? `Novo lead: ${conteudo}`
+                    : `Lead cadastrado: ${leadId || 'N/A'}`;
+                }
+
                 return (
-                  <div key={idx} className="flex items-start gap-3 p-3 border-b last:border-b-0">
-                    {/* Ícone baseado no tipo */}
-                    {eventType === 'mensagem' && <MessageSquare className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />}
-                    {eventType === 'disparo' && <Send className="h-5 w-5 text-purple-500 flex-shrink-0 mt-0.5" />}
-                    {eventType === 'lead' && <UserPlus className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />}
+                  <div key={event.id || idx} className="flex items-start gap-3 p-3 border-b last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    {eventIcon}
 
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${badgeColor}`}>
+                          {tipoAtividade === 'mensagem' ? 'Mensagem' : tipoAtividade === 'disparo' ? 'Disparo' : 'Lead'}
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {eventContent}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
