@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { KPICard } from '@/components/metrics/kpi-card';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,11 +21,19 @@ interface PageProps {
 
 export default function AgentPage({ params }: PageProps) {
   const { id } = use(params);
+  const router = useRouter();
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
+
+  // Vitor tem página dedicada em /dashboard/vitor — redirecionar para ela
+  useEffect(() => {
+    if (id === 'agent-vitor') {
+      router.replace('/dashboard/vitor');
+    }
+  }, [id, router]);
 
   const loadAgentData = useCallback(async () => {
     try {
@@ -48,8 +57,18 @@ export default function AgentPage({ params }: PageProps) {
   }, [id]);
 
   useEffect(() => {
-    loadAgentData();
-  }, [loadAgentData]);
+    if (id !== 'agent-vitor') {
+      loadAgentData();
+    }
+  }, [id, loadAgentData]);
+
+  if (id === 'agent-vitor') {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <p className="text-gray-500">Redirecionando para o Vitor...</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

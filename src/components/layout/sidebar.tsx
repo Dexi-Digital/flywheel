@@ -129,12 +129,14 @@ export function Sidebar() {
           </h3>
           <div className="space-y-1">
             {agents.map((agent) => {
-              const isActive = pathname === `/dashboard/agentes/${agent.id}`;
+              const isVitor = agent.id === 'agent-vitor';
+              const href = isVitor ? '/dashboard/vitor' : `/dashboard/agentes/${agent.id}`;
+              const isActive = pathname === `/dashboard/agentes/${agent.id}` || (isVitor && pathname === '/dashboard/vitor');
 
               return (
                 <Link
                   key={agent.id}
-                  href={`/dashboard/agentes/${agent.id}`}
+                  href={href}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                     isActive
