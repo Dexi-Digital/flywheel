@@ -4,29 +4,70 @@ import { KPICard } from '@/components/metrics/kpi-card';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
-import { getOttoMetrics, formatCurrency } from '@/lib/mock-data';
-import { getStagnantLeads, getLeadsByAgent, AGENTS_DATA } from '@/lib/mock-data';
-import { getEventsByType } from '@/lib/mock-data/events';
+import {
+  getOttoMetrics,
+  formatCurrency,
+  getStagnantLeads,
+  getAllAgents,
+  getEventsByType,
+  OttoMetrics,
+} from '@/lib/aggregated-data';
+import { Lead, Agent, Event } from '@/types/database.types';
 import { TrainingModal } from '@/components/layout/training-modal';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bot, AlertTriangle, CheckCircle, ArrowRightLeft, DollarSign, GraduationCap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function OttoPage() {
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
-  const metrics = getOttoMetrics();
-  const stagnantLeads = getStagnantLeads().slice(0, 10);
-  const interventions = getEventsByType('INTERVENCAO_OTTO')
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 10);
-  const transbordos = getEventsByType('LEAD_TRANSBORDADO').slice(0, 5);
+  const [metrics, setMetrics] = useState<OttoMetrics | null>(null);
+  const [stagnantLeads, setStagnantLeads] = useState<Lead[]>([]);
+  const [interventions, setInterventions] = useState<Event[]>([]);
+  const [transbordos, setTransbordos] = useState<Event[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Calcular tooltip da receita salva
-  const ottoAgent = AGENTS_DATA.find(a => a.id === 'agent-otto');
-  const leadsSalvos = ottoAgent?.metricas_agregadas.leads_salvos || 0;
-  const ticketMedio = ottoAgent?.metricas_agregadas.ticket_medio_resgate || 0;
-  const receitaSalvaTooltip = `${leadsSalvos} leads resgatados × ${formatCurrency(ticketMedio)} (ticket médio) = Projeção baseada em LTV médio`;
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [metricsData, stagnantData, interventionsData, transbordosData, agentsData] = await Promise.all([
+          getOttoMetrics(),
+          getStagnantLeads(),
+          getEventsByType('INTERVENCAO_OTTO'),
+          getEventsByType('LEAD_TRANSBORDADO'),
+          getAllAgents(),
+        ]);
+
+        setMetrics(metricsData);
+        setStagnantLeads(stagnantData.slice(0, 10));
+        setInterventions(interventionsData.slice(0, 10));
+        setTransbordos(transbordosData.slice(0, 5));
+        setAgents(agentsData);
+      } catch (error) {
+        console.error('Error loading OTTO data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-gray-500">Carregando dados do OTTO...</div>
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-red-500">Erro ao carregar dados do OTTO</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -58,8 +99,8 @@ export default function OttoPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="Total de Intervenções"
-          value={metrics.total_intervencoes}
+          title="Intervenções Hoje"
+          value={metrics.intervencoes_hoje.toString()}
           icon={<Bot className="h-5 w-5" />}
         />
         <KPICard
@@ -69,14 +110,13 @@ export default function OttoPage() {
         />
         <KPICard
           title="Leads Estagnados"
-          value={metrics.leads_estagnados}
+          value={metrics.leads_estagnados.toString()}
           icon={<AlertTriangle className="h-5 w-5" />}
         />
         <KPICard
           title="Receita Salva"
           value={formatCurrency(metrics.receita_salva)}
           icon={<DollarSign className="h-5 w-5" />}
-          tooltip={receitaSalvaTooltip}
         />
       </div>
 
@@ -92,7 +132,7 @@ export default function OttoPage() {
           <CardContent>
             <div className="space-y-3">
               {stagnantLeads.map((lead) => {
-                const agent = AGENTS_DATA.find((a) => a.id === lead.agente_atual_id);
+                const agent = agents.find((a) => a.id === lead.agente_atual_id);
                 return (
                   <div
                     key={lead.id}

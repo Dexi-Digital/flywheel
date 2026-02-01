@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { KPICard } from '@/components/metrics/kpi-card';
 import { LineChart } from '@/components/charts/line-chart';
 import { BarChart } from '@/components/charts/bar-chart';
@@ -10,14 +11,59 @@ import {
   getConversionFunnelData,
   getAgentPerformanceData,
   formatCurrency,
-} from '@/lib/mock-data';
+  DashboardMetrics,
+  LeadsOverTimeDataPoint,
+  ConversionFunnelStage,
+  AgentPerformance,
+} from '@/lib/aggregated-data';
 import { Users, DollarSign, RefreshCcw, TrendingUp, Bot } from 'lucide-react';
 
 export default function DashboardPage() {
-  const metrics = getDashboardMetrics();
-  const leadsTimeData = getLeadsOverTimeData();
-  const funnelData = getConversionFunnelData();
-  const agentPerformance = getAgentPerformanceData();
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [leadsTimeData, setLeadsTimeData] = useState<LeadsOverTimeDataPoint[]>([]);
+  const [funnelData, setFunnelData] = useState<ConversionFunnelStage[]>([]);
+  const [agentPerformance, setAgentPerformance] = useState<AgentPerformance[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [metricsData, timeData, funnel, performance] = await Promise.all([
+          getDashboardMetrics(),
+          getLeadsOverTimeData(),
+          getConversionFunnelData(),
+          getAgentPerformanceData(),
+        ]);
+
+        setMetrics(metricsData);
+        setLeadsTimeData(timeData);
+        setFunnelData(funnel);
+        setAgentPerformance(performance);
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-gray-500">Carregando dados do dashboard...</div>
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-red-500">Erro ao carregar dados do dashboard</div>
+      </div>
+    );
+  }
 
   const performanceChartData = agentPerformance.map((a) => ({
     name: a.agent_name,
@@ -37,16 +83,29 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Top Highlights (New Specification) */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="Capital sob Gestão Agêntica"
-          value={formatCurrency(metrics.capital_sob_gestao)}
-          change={metrics.capital_sob_gestao_variacao}
-          changeLabel="Top-Line Impact"
-          icon={<DollarSign className="h-6 w-6 text-blue-600" />}
-          className="lg:col-span-2 bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30"
-          tooltip="Soma de Recuperação Ativa + Pipeline de Intenção de Compra"
+          title="Total de Leads"
+          value={metrics.total_leads.toString()}
+          icon={<Users className="h-6 w-6 text-blue-600" />}
+        />
+        <KPICard
+          title="Leads Ativos"
+          value={metrics.leads_ativos.toString()}
+          icon={<TrendingUp className="h-6 w-6 text-green-600" />}
+        />
+        <KPICard
+          title="Conversões"
+          value={metrics.conversoes.toString()}
+          change={metrics.taxa_conversao * 100}
+          changeLabel={`${(metrics.taxa_conversao * 100).toFixed(1)}% taxa`}
+          icon={<RefreshCcw className="h-6 w-6 text-purple-600" />}
+        />
+        <KPICard
+          title="Receita Total"
+          value={formatCurrency(metrics.receita_total)}
+          icon={<DollarSign className="h-6 w-6 text-yellow-600" />}
         />
         <KPICard
           title="Economia Gerada"

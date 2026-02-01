@@ -12,10 +12,11 @@ function toStr(v: unknown): string | undefined {
 
 async function fetchLuisData(sb: SupabaseClient) {
   // Leads CRM (base principal com detalhes de veículo)
+  // Nota: A coluna é "Nome" (maiúsculo) no banco de dados
   const leadsPromise = sb
     .from('Leads CRM')
     .select(`
-      id,created_at,nome,email,telefone,origem,status,ultima_interacao,valor_potencial,
+      id,created_at,Nome,email,telefone,origem,status,ultima_interacao,valor_potencial,
       "Tipo de Atendimento",message,contato_realizado,
       id_veiculo,url_veiculo,marca_veiculo,modelo_veiculo,versao_veiculo,ano_veiculo,cor_veiculo,condicao_veiculo
     `)
@@ -79,17 +80,17 @@ async function fetchLuisData(sb: SupabaseClient) {
     .limit(1);
 
   // Contatos
+  // Nota: A tabela contatos pode não ter as colunas email e created_at
   const contatosPromise = sb
     .from('contatos')
-    .select('id,nome,whatsapp,email,created_at')
-    .order('created_at', { ascending: false })
+    .select('id,nome,whatsapp')
     .limit(50);
 
   // Documents (base de conhecimento)
+  // Nota: A tabela documents pode não ter a coluna created_at
   const documentsPromise = sb
     .from('documents')
-    .select('id,content,metadata,embedding,created_at')
-    .order('created_at', { ascending: false })
+    .select('id,content,metadata,embedding')
     .limit(20);
 
   // Aguardar todas em paralelo
@@ -146,7 +147,8 @@ function normalizeLead(row: Record<string, any>, agentId: string): Lead {
   const createdAt = toStr(row.created_at) ?? new Date().toISOString();
   return {
     id: String(row.id),
-    nome: toStr(row.nome) ?? 'Sem nome',
+    // Nota: A coluna no banco é "Nome" (maiúsculo)
+    nome: toStr(row.Nome) ?? toStr(row.nome) ?? 'Sem nome',
     email: toStr(row.email) ?? '',
     whatsapp: undefined,
     telefone: toStr(row.telefone),

@@ -1,6 +1,3 @@
-// Re-export all mock data and utilities
-export * from './agents';
-export * from './leads';
-export * from './events';
-export * from './metrics';
+// Re-export Sales Pilot mock data only
+export * from './sales-pilot';
 

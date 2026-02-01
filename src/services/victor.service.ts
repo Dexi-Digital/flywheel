@@ -98,10 +98,10 @@ async function fetchVictorData(sb: SupabaseClient) {
     .limit(50);
 
   // PIX - dados bancários
+  // Nota: A tabela pix pode não ter a coluna created_at
   const pixPromise = sb
     .from('pix')
     .select('id,nome_CNPJ,cnpj,relacao_loteamento')
-    .order('created_at', { ascending: false })
     .limit(20);
 
   // Aguardar todas em paralelo

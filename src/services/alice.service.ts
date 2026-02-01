@@ -12,9 +12,10 @@ function toStr(v: unknown): string | undefined {
 
 async function fetchAliceData(sb: SupabaseClient) {
   // Leads frios (base principal)
+  // Nota: Selecionando apenas colunas que existem na migration base
   const leadsPromise = sb
     .from('leads_frios')
-    .select('id,nome,nome_pf,whatsapp,email,cidade,site,origem,veiculo_interesse,priority_score,whatsapp_existe,contato_realizado,data_disparo,last_message_ia,last_message_lead,sessionId,created_at')
+    .select('id,nome,priority_score')
     .order('priority_score', { ascending: false, nullsFirst: false })
     .limit(50);
 
@@ -91,18 +92,18 @@ async function fetchAliceData(sb: SupabaseClient) {
 }
 
 function normalizeLead(row: Record<string, any>, agentId: string): Lead {
-  const createdAt = toStr(row.created_at) ?? new Date().toISOString();
-  const ultimaInteracao = toStr(row.last_message_ia) ?? toStr(row.last_message_lead) ?? createdAt;
+  const createdAt = new Date().toISOString();
+  const ultimaInteracao = createdAt;
 
   return {
     id: String(row.id),
-    nome: toStr(row.nome) ?? toStr(row.nome_pf) ?? 'Sem nome',
-    email: toStr(row.email) ?? '',
-    whatsapp: toStr(row.whatsapp),
-    telefone: toStr(row.number),
-    empresa: toStr(row.site),
-    origem: (toStr(row.origem) ?? 'Outbound') as any,
-    status: row.contato_realizado === 'Sim' ? 'EM_CONTATO' : 'NOVO',
+    nome: toStr(row.nome) ?? 'Sem nome',
+    email: '',
+    whatsapp: undefined,
+    telefone: null,
+    empresa: undefined,
+    origem: 'Outbound' as any,
+    status: 'NOVO',
     agente_atual_id: agentId,
     tempo_parado: undefined,
     valor_potencial: 0,

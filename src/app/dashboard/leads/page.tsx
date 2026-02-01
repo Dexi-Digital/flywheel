@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { LEADS_DATA, AGENTS_DATA } from '@/lib/mock-data';
+import { getAllLeads, getAllAgents } from '@/lib/aggregated-data';
 import { formatCurrency, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { Users, Filter, Search, LayoutGrid, List } from 'lucide-react';
-import { LeadStatus, LeadWithAgent } from '@/types/database.types';
+import { LeadStatus, LeadWithAgent, Lead, Agent } from '@/types/database.types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { KanbanBoard } from '@/components/kanban/kanban-board';
@@ -28,28 +28,57 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredLeads = LEADS_DATA.filter((lead) => {
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [leadsData, agentsData] = await Promise.all([
+          getAllLeads(),
+          getAllAgents(),
+        ]);
+        setLeads(leadsData);
+        setAgents(agentsData);
+      } catch (error) {
+        console.error('Error loading leads data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const filteredLeads = leads.filter((lead) => {
     const matchesStatus = statusFilter === 'ALL' || lead.status === statusFilter;
     const matchesSearch =
       searchQuery === '' ||
       lead.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
       lead.empresa?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.email.toLowerCase().includes(searchQuery.toLowerCase());
+      lead.email?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
   const leadsWithAgents: LeadWithAgent[] = useMemo(() => {
     return filteredLeads.map(lead => ({
       ...lead,
-      agente: AGENTS_DATA.find(a => a.id === lead.agente_atual_id)!
+      agente: agents.find(a => a.id === lead.agente_atual_id)!
     }));
-  }, [filteredLeads]);
+  }, [filteredLeads, agents]);
 
   const getAgentName = (agentId: string) => {
-    const agent = AGENTS_DATA.find((a) => a.id === agentId);
+    const agent = agents.find((a) => a.id === agentId);
     return agent?.nome || 'N/A';
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-gray-500">Carregando leads...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

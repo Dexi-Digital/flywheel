@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AgentService } from "@/types/service.type";
 import { getBrowserTenantClient } from "@/lib/supabase/agentClients";
-import { Lead, LeadOrigin } from "@/types/database.types";
+import { Lead, LeadOrigin, Event, EventType } from "@/types/database.types";
 import { getTenantConfig } from "@/lib/supabase/agents";
 import { buildAgentCommon } from "./common";
 
@@ -10,135 +10,142 @@ function toStr(v: unknown): string | undefined {
   return String(v);
 }
 
+function toNum(v: unknown): number {
+  if (v === null || v === undefined) return 0;
+  const num = Number(v);
+  return isNaN(num) ? 0 : num;
+}
+
+// Extrai valor da descrição do alerta (formato: "Carro: X, Valor: R$ Y")
+function extractValorFromDescricao(descricao: string | null | undefined): number {
+  if (!descricao) return 0;
+
+  const match = descricao.match(/valor[:\s]*r?\$?\s*([\d.,]+)/i);
+  if (match && match[1]) {
+    const valorStr = match[1].replace(/\./g, '').replace(',', '.');
+    return parseFloat(valorStr) || 0;
+  }
+  return 0;
+}
+
 async function fetchAngelaData(sb: SupabaseClient) {
-  // Análise de interações (tabela principal)
-  const interacoesPromise = sb
-    .from("analise_interacoes")
-    .select("id,created_at,nome,whatsapp,loja,interesse,interesse_veiculo,veiculo,interesse_compra_futura,solicitou_retorno,data_retorno,respondeu,alerta,justificativa_alerta,problema,relato_problema,feedback,analise_sentimento,reanalise")
+  // 1. Leads ativos: regua_relacionamento onde ativo == true
+  const leadsAtivosPromise = sb
+    .from("regua_relacionamento")
+    .select("*")
+    .eq("ativo", true)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(100);
 
-  // Follow-ups agendados
-  const followupAgendadoPromise = sb
-    .from("followUp_agendado")
-    .select("id,created_at,name_lead,number_lead,follow-up_date,follow-up_message,id_lead")
-    .gte("follow-up_date", new Date().toISOString())
-    .order("follow-up_date", { ascending: true })
-    .limit(30);
-
-  // Follow-disparos (já enviados)
-  const followDisparodsPromise = sb
-    .from("follow-disparos")
-    .select("id,created_at,nome,telefone,session_id")
+  // 2. Leads transferidos (alertas): logs_alertas_enviados
+  const alertasPromise = sb
+    .from("logs_alertas_enviados")
+    .select("*")
     .order("created_at", { ascending: false })
-    .limit(30);
+    .limit(100);
 
-  // Leads para verificar
-  const leadsVerificarPromise = sb
-    .from("leads-verificar-followUp")
-    .select("id,created_at,nome,telefone,session_id")
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  // Curadoria
-  const curadoriaPromise = sb
-    .from("curadoria")
-    .select("id,created_at,sessionId,message_user,message_ai,internal_reasoning")
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  // Intervenções humanas
+  // 3. Leads transferidos (intervenção): intervencao_humana
   const intervencaoPromise = sb
     .from("intervencao_humana")
-    .select("id,sessionId,block,date_time")
+    .select("*")
     .order("date_time", { ascending: false })
-    .limit(30);
-
-  // Buffer de mensagens
-  const bufferPromise = sb
-    .from("buffer_messages")
-    .select("id,created_at,message,chatId,idMessage,timestamp")
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  // Veículos sugeridos
-  const vehiclesPromise = sb
-    .from("cached_vehicles")
-    .select("id,created_at,id_lead,vehicle,url_vehicle,enviado")
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  // Dados da empresa
-  const empresaPromise = sb
-    .from("dados_empresa")
-    .select("id,created_at,ano_fundacao,segmento_principal,descricao_empresa,endereco,telefone_principal,email_principal,url_site")
-    .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(100);
 
   // Aguardar todas em paralelo
-  const [
-    interacoesRes,
-    followupAgendadoRes,
-    followDisparodsRes,
-    leadsVerificarRes,
-    curadoriaRes,
-    intervencaoRes,
-    bufferRes,
-    vehiclesRes,
-    empresaRes,
-  ] = await Promise.all([
-    interacoesPromise,
-    followupAgendadoPromise,
-    followDisparodsPromise,
-    leadsVerificarPromise,
-    curadoriaPromise,
+  const [leadsAtivosRes, alertasRes, intervencaoRes] = await Promise.all([
+    leadsAtivosPromise,
+    alertasPromise,
     intervencaoPromise,
-    bufferPromise,
-    vehiclesPromise,
-    empresaPromise,
   ]);
 
-  if (interacoesRes.error) throw new Error(`analise_interacoes: ${interacoesRes.error.message}`);
-  if (followupAgendadoRes.error) console.warn(`followUp_agendado (non-critical): ${followupAgendadoRes.error.message}`);
-  if (followDisparodsRes.error) console.warn(`follow-disparos (non-critical): ${followDisparodsRes.error.message}`);
-  if (leadsVerificarRes.error) console.warn(`leads-verificar-followUp (non-critical): ${leadsVerificarRes.error.message}`);
-  if (curadoriaRes.error) console.warn(`curadoria (non-critical): ${curadoriaRes.error.message}`);
-  if (intervencaoRes.error) console.warn(`intervencao_humana (non-critical): ${intervencaoRes.error.message}`);
-  if (bufferRes.error) console.warn(`buffer_messages (non-critical): ${bufferRes.error.message}`);
-  if (vehiclesRes.error) console.warn(`cached_vehicles (non-critical): ${vehiclesRes.error.message}`);
-  if (empresaRes.error) console.warn(`dados_empresa (non-critical): ${empresaRes.error.message}`);
+  if (leadsAtivosRes.error) console.warn(`regua_relacionamento: ${leadsAtivosRes.error.message}`);
+  if (alertasRes.error) console.warn(`logs_alertas_enviados: ${alertasRes.error.message}`);
+  if (intervencaoRes.error) console.warn(`intervencao_humana: ${intervencaoRes.error.message}`);
+
+  const leadsAtivos = (leadsAtivosRes.data ?? []) as Record<string, any>[];
+  const alertas = (alertasRes.data ?? []) as Record<string, any>[];
+  const intervencoes = (intervencaoRes.data ?? []) as Record<string, any>[];
+
+  // Buscar dados completos dos leads transferidos via JOIN manual
+  const sessionIdsAlertas = alertas.map(a => a.sessionId).filter(Boolean);
+  const sessionIdsIntervencao = intervencoes.map(i => i.sessionId).filter(Boolean);
+  const allSessionIds = [...new Set([...sessionIdsAlertas, ...sessionIdsIntervencao])];
+
+  let leadsTransferidos: Record<string, any>[] = [];
+  if (allSessionIds.length > 0) {
+    const { data, error } = await sb
+      .from("regua_relacionamento")
+      .select("*")
+      .in("sessionId", allSessionIds);
+
+    if (error) {
+      console.warn(`regua_relacionamento (transferidos): ${error.message}`);
+    } else {
+      leadsTransferidos = data ?? [];
+    }
+  }
+
+  // Criar mapa de sessionId -> lead para facilitar JOIN
+  const leadsMap = new Map<string, Record<string, any>>();
+  [...leadsAtivos, ...leadsTransferidos].forEach(lead => {
+    if (lead.sessionId) {
+      leadsMap.set(lead.sessionId, lead);
+    }
+  });
 
   return {
-    interacoes: (interacoesRes.data ?? []) as Record<string, any>[],
-    followupAgendado: (followupAgendadoRes.data ?? []) as Record<string, any>[],
-    followDisparos: (followDisparodsRes.data ?? []) as Record<string, any>[],
-    leadsVerificar: (leadsVerificarRes.data ?? []) as Record<string, any>[],
-    curadoria: (curadoriaRes.data ?? []) as Record<string, any>[],
-    intervencao: (intervencaoRes.data ?? []) as Record<string, any>[],
-    buffer: (bufferRes.data ?? []) as Record<string, any>[],
-    vehicles: (vehiclesRes.data ?? []) as Record<string, any>[],
-    empresa: (empresaRes.data ?? []) as Record<string, any>[],
+    leadsAtivos,
+    alertas,
+    intervencoes,
+    leadsMap,
   };
 }
 
-function normalizeLead(row: Record<string, any>, agentId: string): Lead {
+function normalizeLead(row: Record<string, any>, agentId: string, valorPotencial: number = 0): Lead {
   const createdAt = toStr(row.created_at) ?? new Date().toISOString();
-  const valorPotencial = row.interesse_compra_futura ? 5000 : 0;
+  const ultimaInteracao = toStr(row.updated_at) ?? toStr(row.last_interaction) ?? createdAt;
 
   return {
-    id: String(row.id),
-    nome: toStr(row.nome) ?? "Sem nome",
-    email: "",
-    whatsapp: toStr(row.whatsapp),
-    telefone: undefined,
-    empresa: toStr(row.loja),
-    origem: "Outbound" as LeadOrigin,
-    status: row.respondeu === "Sim" ? "EM_CONTATO" : "NOVO",
+    id: String(row.id ?? row.sessionId),
+    nome: toStr(row.nome) ?? toStr(row.name) ?? "Sem nome",
+    email: toStr(row.email) ?? "",
+    whatsapp: toStr(row.whatsapp) ?? toStr(row.telefone),
+    telefone: toStr(row.telefone),
+    empresa: toStr(row.loja) ?? toStr(row.empresa),
+    origem: "Inbound" as LeadOrigin,
+    status: row.ativo === true ? "EM_CONTATO" : "NOVO",
     agente_atual_id: agentId,
     valor_potencial: valorPotencial,
-    ultima_interacao: createdAt,
+    ultima_interacao: ultimaInteracao,
     created_at: createdAt,
-    updated_at: createdAt,
+    updated_at: ultimaInteracao,
+  };
+}
+
+function normalizeEvent(
+  alerta: Record<string, any>,
+  lead: Record<string, any> | undefined,
+  agentId: string,
+  tipo: EventType
+): Event {
+  const timestamp = toStr(alerta.created_at) ?? toStr(alerta.date_time) ?? new Date().toISOString();
+  const leadId = String(lead?.id ?? lead?.sessionId ?? alerta.sessionId ?? "unknown");
+
+  // Extrair valor da descrição se disponível
+  const valor = extractValorFromDescricao(alerta.descricao);
+
+  return {
+    id: String(alerta.id),
+    tipo,
+    lead_id: leadId,
+    agente_id: agentId,
+    metadata: {
+      motivo: toStr(alerta.alerta) ?? toStr(alerta.block) ?? "Transferência",
+      valor: valor > 0 ? valor : undefined,
+      sessionId: toStr(alerta.sessionId),
+      descricao: toStr(alerta.descricao),
+    },
+    timestamp,
   };
 }
 
@@ -151,12 +158,42 @@ export const angelaService: AgentService = {
 
     const data = await fetchAngelaData(sb);
 
-    const leads = data.interacoes.map((row) => normalizeLead(row, agentId));
-    const events: any[] = [];
+    // Normalizar leads ativos
+    const leadsAtivos = data.leadsAtivos.map((row) => {
+      // Tentar extrair valor se houver descrição
+      const valor = extractValorFromDescricao(row.descricao);
+      return normalizeLead(row, agentId, valor);
+    });
 
-    // Log summary
-    console.log(`[Angela] Interacoes: ${leads.length}, FollowupAgendado: ${data.followupAgendado.length}, FollowDisparos: ${data.followDisparos.length}, LeadsVerificar: ${data.leadsVerificar.length}, Curadoria: ${data.curadoria.length}, Intervencao: ${data.intervencao.length}, Buffer: ${data.buffer.length}, Vehicles: ${data.vehicles.length}, Empresa: ${data.empresa.length}`);
+    // Criar eventos de alertas (leads transferidos)
+    const eventosAlertas: Event[] = data.alertas.map((alerta) => {
+      const lead = data.leadsMap.get(alerta.sessionId);
+      return normalizeEvent(alerta, lead, agentId, "LEAD_TRANSBORDADO");
+    });
 
-    return buildAgentCommon(agentId, "Ângela", leads, events);
+    // Criar eventos de intervenção humana
+    const eventosIntervencao: Event[] = data.intervencoes.map((intervencao) => {
+      const lead = data.leadsMap.get(intervencao.sessionId);
+      return normalizeEvent(intervencao, lead, agentId, "INTERVENCAO_OTTO");
+    });
+
+    const allEvents = [...eventosAlertas, ...eventosIntervencao];
+
+    // Calcular métricas
+    const leadsTransferidos = eventosAlertas.length;
+    const intervencoes = eventosIntervencao.length;
+    const valorGerado = allEvents.reduce((sum, e) => sum + (e.metadata.valor ?? 0), 0);
+
+    console.log(`[Angela] Leads Ativos: ${leadsAtivos.length}, Alertas: ${eventosAlertas.length}, Intervenções: ${eventosIntervencao.length}, Valor Gerado: R$ ${valorGerado.toLocaleString('pt-BR')}`);
+
+    return buildAgentCommon(agentId, "Ângela", leadsAtivos, allEvents, {
+      metricas_agregadas: {
+        leads_ativos: leadsAtivos.length,
+        conversoes: 0,
+        receita_total: valorGerado,
+        leads_transferidos: leadsTransferidos,
+        intervencoes_humanas: intervencoes,
+      },
+    });
   },
 };
