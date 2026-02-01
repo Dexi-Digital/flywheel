@@ -420,7 +420,7 @@ export default function VictorPage() {
 
         {/* KPI Cards do Kanban */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          {(['Recuperado', 'Em Negociacao', 'Em Aberto'] as const).map((stage) => {
+          {(['Em Aberto', 'Em Negociacao', 'Recuperado'] as const).map((stage) => {
             const stageMeta = kanbanData.meta[stage];
             const colors: Record<string, string> = {
               'Recuperado': 'text-green-600 bg-green-50 dark:bg-green-900/20',
