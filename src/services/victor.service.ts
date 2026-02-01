@@ -162,8 +162,18 @@ async function fetchVictorData(sb: SupabaseClient) {
   };
 }
 
+// Função auxiliar para validar e converter datas
+function toSafeDate(value: unknown): string {
+  if (!value) return new Date().toISOString();
+  const str = String(value);
+  const date = new Date(str);
+  return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
 function normalizeLead(row: Record<string, any>, agentId: string): Lead {
-  const createdAt = toStr(row.created_at) ?? new Date().toISOString();
+  const createdAt = toSafeDate(row.created_at);
+  const ultimaInteracao = toSafeDate(row.ultima_interacao);
+
   return {
     id: String(row.id),
     nome: toStr(row.nome_cliente) ?? 'Sem nome',
@@ -176,7 +186,7 @@ function normalizeLead(row: Record<string, any>, agentId: string): Lead {
     agente_atual_id: agentId,
     tempo_parado: undefined,
     valor_potencial: Number(row.valor_devido) || 0,
-    ultima_interacao: toStr(row.ultima_interacao) ?? createdAt,
+    ultima_interacao: ultimaInteracao,
     created_at: createdAt,
     updated_at: createdAt,
   };
@@ -252,7 +262,7 @@ export const victorService: AgentService = {
         dias_em_debito: r.dias_em_debito,
         vencimento: r.vencimento,
       },
-      timestamp: r.aberta_em || new Date().toISOString(),
+      timestamp: toSafeDate(r.aberta_em),
     }));
 
     // Log summary
