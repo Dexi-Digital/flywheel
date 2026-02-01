@@ -31,8 +31,8 @@ export type AgentsConfig = {
       context: 'devforaiagents',
     },
     'agent-vitor': {
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_VICTOR ?? '',
-      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VICTOR ?? '',
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL_VITOR ?? '',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_VITOR ?? '',
       context: 'tgvempreendimentos',
     },
   };
