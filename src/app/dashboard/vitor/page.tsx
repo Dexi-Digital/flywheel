@@ -121,15 +121,13 @@ export default function VictorPage() {
 
   const metrics = agent?.metricas_agregadas || {};
 
-  // Extrair métricas das RPC queries (quando agente carregou)
-  const receitaRecuperadaTotal = Number(metrics.receita_recuperada_total) || 0;
+  // Extrair métricas do Kanban (fonte única de verdade para Recuperado)
+  const receitaRecuperadaTotal = kanbanData.meta['Recuperado']?.total_recuperado || 0;
+  const clientesRecuperadosKanban = kanbanData.meta['Recuperado']?.count || 0;
   const clientesRecuperados = Number(metrics.clientes_recuperados) || 0;
   const tempoMedioHorasRaw = Number(metrics.tempo_medio_horas) || 0;
   const tempoMedioMinutos = Number(metrics.tempo_medio_minutos) || 0;
   const receitaPorDia = metrics.receita_recuperada_por_dia || [];
-  const totalParcelasRenegociadas = Number(metrics.total_parcelas_renegociadas) || 0;
-
-  const clientesPromessa = Number(metrics.clientes_promessa) || 0;
   const clientesEmNegociacao = Number(metrics.clientes_em_negociacao) || 0;
   const clientesEmAberto = Number(metrics.clientes_em_aberto) || 0;
   const taxaSucesso = Number(metrics.taxa_sucesso) || 0;
@@ -139,9 +137,8 @@ export default function VictorPage() {
 
   const funnelData = [
     { stage: 'Em Aberto', value: clientesEmAberto, fill: '#9ca3af' },
-    { stage: 'Em Negociação', value: clientesEmNegociacao, fill: '#3b82f6' },
-    { stage: 'Promessa de Pagamento', value: clientesPromessa, fill: '#f59e0b' },
-    { stage: 'Recuperado', value: clientesRecuperados, fill: '#10b981' },
+    { stage: 'Em Negociação', value: clientesEmNegociacao, fill: '#eab308' },
+    { stage: 'Recuperado', value: clientesRecuperadosKanban, fill: '#10b981' },
   ];
 
   const chartData = Array.isArray(receitaPorDia) ? receitaPorDia.map((d: any) => ({
@@ -198,7 +195,7 @@ export default function VictorPage() {
                 {formatCurrency(receitaRecuperadaTotal)}
               </p>
               <p className="mt-1 text-xs text-gray-500">
-                {totalParcelasRenegociadas} parcelas renegociadas
+                {clientesRecuperadosKanban} clientes recuperados
               </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-900/20">
