@@ -12,11 +12,12 @@ function toStr(v: unknown): string | undefined {
 
 async function fetchVictorData(sb: SupabaseClient) {
   // Acompanhamento de leads (base principal)
+  // Aumentar limite para mostrar todos os clientes no Kanban
   const acompanhamentoPromise = sb
     .from('acompanhamento_leads')
     .select('id,created_at,nome_cliente,id_cliente,numero_cliente,id_divida')
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(500); // Aumentado para cobrir todos os clientes
 
   // Parcelas (informações da dívida / financeiro)
   const parcelasPromise = sb
@@ -215,17 +216,23 @@ export const victorService: AgentService = {
 
     // 1. RECEITA RECUPERADA (total e últimos 30 dias)
     const receitaTotalRes = await sb.rpc('get_receita_recuperada_total');
-    const receita_recuperada_total = receitaTotalRes.data?.[0]?.receita_recuperada_total || 0;
+    console.log('[VICTOR DEBUG] Receita Total RPC:', receitaTotalRes);
+    const receita_recuperada_total = Number(receitaTotalRes.data?.[0]?.receita_recuperada_total) || 0;
 
     const receitaDiariaRes = await sb.rpc('get_receita_recuperada_30_dias');
+    console.log('[VICTOR DEBUG] Receita Diária RPC:', receitaDiariaRes.data?.length, 'dias');
     const receita_por_dia = receitaDiariaRes.data || [];
 
     // 2. TEMPO MÉDIO DE RESOLUÇÃO (em horas)
     const tempoMedioRes = await sb.rpc('get_tempo_medio_resolucao');
-    const tempo_medio_resolucao_horas = tempoMedioRes.data?.[0]?.tempo_medio_horas || 0;
+    console.log('[VICTOR DEBUG] Tempo Médio RPC:', tempoMedioRes);
+    console.log('[VICTOR DEBUG] Tempo Médio RAW VALUE:', tempoMedioRes.data?.[0]?.tempo_medio_horas);
+    const tempo_medio_resolucao_horas = Number(tempoMedioRes.data?.[0]?.tempo_medio_horas) || 0;
+    console.log('[VICTOR DEBUG] Tempo Médio PARSED:', tempo_medio_resolucao_horas);
 
     // 3. FLUXO DE TRABALHO (Kanban - contagem por status)
     const kanbanRes = await sb.rpc('get_kanban_status');
+    console.log('[VICTOR DEBUG] Kanban RPC:', kanbanRes);
     const kanban_counts = (kanbanRes.data || []).reduce((acc: any, row: any) => {
       acc[row.status] = row.quantidade;
       return acc;
@@ -238,6 +245,7 @@ export const victorService: AgentService = {
 
     // 4. ATIVIDADE RECENTE (últimos 100 eventos combinados)
     const atividadeRes = await sb.rpc('get_atividade_recente');
+    console.log('[VICTOR DEBUG] Atividade Recente RPC:', atividadeRes.data?.length, 'eventos');
     const atividades_recentes = atividadeRes.data || [];
 
     // ========== MÉTRICAS CALCULADAS LOCALMENTE ==========
@@ -303,14 +311,23 @@ export const victorService: AgentService = {
     const leads: Lead[] = data.acompanhamento.map((r) => {
       const idCliente = r.id_cliente;
       let status: any = 'NOVO'; // Em Aberto
+      let statusLabel = 'Em Aberto';
 
-      // Classificar status baseado no Kanban
+      // Classificar status baseado no Kanban (alinhado com COLLECTION_COLUMNS)
+      // NOVO → Em Aberto
+      // NEGOCIACAO → Em Negociação (clientes com disparo realizado)
+      // QUALIFICADO → Promessa de Pagamento (clientes com status PROMESSA)
+      // GANHO → Recuperado (clientes com parcelas RENEGOCIADO)
+
       if (clientesRecuperadosSet.has(idCliente)) {
         status = 'GANHO'; // Recuperado
+        statusLabel = 'Recuperado';
       } else if (clientesPromessaSet.has(idCliente)) {
-        status = 'NEGOCIACAO'; // Promessa de Pagamento
+        status = 'QUALIFICADO'; // Promessa de Pagamento
+        statusLabel = 'Promessa de Pagamento';
       } else if (clientesDisparoSet.has(idCliente)) {
-        status = 'EM_CONTATO'; // Em Negociação
+        status = 'NEGOCIACAO'; // Em Negociação
+        statusLabel = 'Em Negociação';
       }
 
       // Calcular valor devido (soma das parcelas em atraso do cliente)
@@ -318,6 +335,15 @@ export const victorService: AgentService = {
         p.id_cliente === idCliente && p.dias_em_atraso && Number(p.dias_em_atraso) > 0
       );
       const valorDevido = parcelasCliente.reduce((sum, p) => sum + parseValorMonetario(p.valor_parcela), 0);
+
+      // Pegar informações adicionais para o card
+      const parcelasRenegociadas = data.parcelas.filter(p =>
+        p.id_cliente === idCliente && p.status_renegociacao === 'RENEGOCIADO'
+      ).length;
+
+      const diasAtraso = parcelasCliente.length > 0
+        ? Math.max(...parcelasCliente.map(p => Number(p.dias_em_atraso) || 0))
+        : 0;
 
       const createdAt = toSafeDate(r.created_at);
 
@@ -327,17 +353,35 @@ export const victorService: AgentService = {
         email: '',
         whatsapp: undefined,
         telefone: toStr(r.numero_cliente),
-        empresa: undefined,
+        empresa: toStr(r.id_divida), // Usar id_divida como identificador do loteamento
         origem: 'Inbound',
         status: status,
         agente_atual_id: agentId,
-        tempo_parado: undefined,
+        tempo_parado: diasAtraso > 0 ? diasAtraso : undefined,
         valor_potencial: Math.round(valorDevido),
         ultima_interacao: createdAt,
         created_at: createdAt,
         updated_at: createdAt,
+        metadata: {
+          id_cliente: idCliente,
+          status_label: statusLabel,
+          parcelas_em_atraso: parcelasCliente.length,
+          parcelas_renegociadas: parcelasRenegociadas,
+          dias_atraso_maximo: diasAtraso,
+          valor_devido: valorDevido,
+        },
       };
     });
+
+    // Log da distribuição de leads no Kanban
+    const leadsDistribution = {
+      NOVO: leads.filter(l => l.status === 'NOVO').length,
+      EM_CONTATO: leads.filter(l => l.status === 'EM_CONTATO').length,
+      NEGOCIACAO: leads.filter(l => l.status === 'NEGOCIACAO').length,
+      GANHO: leads.filter(l => l.status === 'GANHO').length,
+    };
+    console.log('[VICTOR DEBUG] Distribuição de leads no Kanban:', leadsDistribution);
+    console.log('[VICTOR DEBUG] Total de leads:', leads.length);
 
     // ========== CRIAR EVENTOS DE ATIVIDADE RECENTE ==========
 
@@ -362,20 +406,18 @@ export const victorService: AgentService = {
       `Parcelas Atraso: ${parcelas_em_atraso} (${parcelas_criticas} críticas), ` +
       `Valor Risco: R$ ${valor_em_risco.toLocaleString('pt-BR')}, Taxa Sucesso: ${(taxa_sucesso * 100).toFixed(1)}%`);
 
-    return buildAgentCommon(agentId, 'Victor', leads, events, {
-      tipo: 'FINANCEIRO',
-      metricas_agregadas: {
-        leads_ativos: contratos_ativos,
-        conversoes: clientes_recuperados,
-        receita_total: receita_recuperada_total,
-        disparos_hoje: disparos_hoje,
+    const metricas = {
+      leads_ativos: contratos_ativos,
+      conversoes: clientes_recuperados,
+      receita_total: receita_recuperada_total,
+      disparos_hoje: disparos_hoje,
 
-        // ===== MÉTRICAS PRINCIPAIS =====
-        contratos_ativos: contratos_ativos,
-        receita_recuperada_total: receita_recuperada_total,
-        receita_recuperada_por_dia: receita_por_dia,
-        tempo_medio_horas: tempo_medio_resolucao_horas,
-        taxa_sucesso: taxa_sucesso,
+      // ===== MÉTRICAS PRINCIPAIS =====
+      contratos_ativos: contratos_ativos,
+      receita_recuperada_total: receita_recuperada_total,
+      receita_recuperada_por_dia: receita_por_dia,
+      tempo_medio_horas: tempo_medio_resolucao_horas,
+      taxa_sucesso: taxa_sucesso,
         // Chaves alinhadas com SQL/relatórios
         total_parcelas_renegociadas: data.parcelas.filter(p => p.status_renegociacao === 'RENEGOCIADO').length,
         clientes_com_renegociacao: clientesRecuperadosSet.size,
@@ -405,7 +447,17 @@ export const victorService: AgentService = {
         opt_outs: opt_outs,
         whatsapp_invalidos: whatsapp_invalidos,
         conversas_ativas: conversas_ativas,
-      },
+      };
+
+    console.log('[VICTOR DEBUG] Métricas finais sendo retornadas:', {
+      tempo_medio_horas: metricas.tempo_medio_horas,
+      receita_recuperada_total: metricas.receita_recuperada_total,
+      clientes_recuperados: metricas.clientes_recuperados,
+    });
+
+    return buildAgentCommon(agentId, 'Victor', leads, events, {
+      tipo: 'FINANCEIRO',
+      metricas_agregadas: metricas,
     });
   },
 };

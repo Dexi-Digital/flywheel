@@ -86,12 +86,19 @@ export default function VictorPage() {
 
   const metrics = agent.metricas_agregadas || {};
 
+  // DEBUG: Log das métricas recebidas
+  console.log('[VICTOR PAGE] Métricas recebidas:', metrics);
+
   // Extrair métricas das RPC queries
   const receitaRecuperadaTotal = Number(metrics.receita_recuperada_total) || 0;
   const clientesRecuperados = Number(metrics.clientes_recuperados) || 0;
   const tempoMedioHorasRaw = Number(metrics.tempo_medio_horas) || 0;
   const receitaPorDia = metrics.receita_recuperada_por_dia || [];
   const totalParcelasRenegociadas = Number(metrics.total_parcelas_renegociadas) || 0;
+
+  console.log('[VICTOR PAGE] Tempo Médio Raw:', tempoMedioHorasRaw);
+  console.log('[VICTOR PAGE] Receita Total:', receitaRecuperadaTotal);
+  console.log('[VICTOR PAGE] Clientes Recuperados:', clientesRecuperados);
 
   // Kanban counts
   const clientesPromessa = Number(metrics.clientes_promessa) || 0;
