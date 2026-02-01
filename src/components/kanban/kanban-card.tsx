@@ -3,7 +3,7 @@
 import { LeadWithAgent } from '@/types/database.types';
 import { Avatar } from '@/components/ui/avatar';
 import { Building2, Mail, Phone, DollarSign, Clock } from 'lucide-react';
-import { formatCurrency } from '@/lib/mock-data';
+import { formatCurrency } from '@/lib/aggregated-data';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 

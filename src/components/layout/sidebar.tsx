@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -11,7 +12,8 @@ import {
   BarChart3,
   Settings,
 } from 'lucide-react';
-import { AGENTS_DATA } from '@/lib/mock-data';
+import { getAllAgents } from '@/lib/aggregated-data';
+import { Agent } from '@/types/database.types';
 import { Avatar } from '@/components/ui/avatar';
 
 const mainNavItems = [
@@ -29,7 +31,19 @@ const mainNavItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const agents = AGENTS_DATA.filter((a) => a.tipo !== 'GOVERNANCA');
+  const [agents, setAgents] = useState<Agent[]>([]);
+
+  useEffect(() => {
+    async function loadAgents() {
+      try {
+        const allAgents = await getAllAgents();
+        setAgents(allAgents.filter((a) => a.tipo !== 'GOVERNANCA'));
+      } catch (error) {
+        console.error('Error loading agents:', error);
+      }
+    }
+    loadAgents();
+  }, []);
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
