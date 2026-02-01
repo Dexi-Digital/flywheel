@@ -27,38 +27,53 @@ import {
 export default function VictorPage() {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [kanbanData, setKanbanData] = useState<KanbanApiResponse>(getEmptyKanbanResponse());
+  const [kanbanLoadFailed, setKanbanLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadAgentData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
+    setKanbanLoadFailed(false);
 
-      // Carregar dados do agente e Kanban em paralelo
-      const [agentData, kanban] = await Promise.all([
-        buildService('agent-vitor').getAgent('agent-vitor'),
-        fetchKanbanData(),
-      ]);
+    const [agentResult, kanbanResult] = await Promise.allSettled([
+      buildService('agent-vitor').getAgent('agent-vitor'),
+      fetchKanbanData(),
+    ]);
 
-      setAgent(agentData);
-      setKanbanData(kanban);
-    } catch (err) {
-      console.error('❌ Erro ao carregar dados do Vitor:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao carregar dados do agente');
-    } finally {
-      setLoading(false);
+    const agentData = agentResult.status === 'fulfilled' ? agentResult.value : null;
+    const kanban = kanbanResult.status === 'fulfilled' ? kanbanResult.value : getEmptyKanbanResponse();
+
+    setAgent(agentData);
+    setKanbanData(kanban);
+    setKanbanLoadFailed(kanbanResult.status === 'rejected');
+
+    if (agentResult.status === 'rejected') {
+      console.warn('❌ Falha ao carregar dados do agente:', agentResult.reason);
     }
+    if (kanbanResult.status === 'rejected') {
+      console.warn('❌ Falha ao carregar Kanban:', kanbanResult.reason);
+    }
+
+    // Erro de tela cheia só quando as duas fontes falharem
+    if (agentResult.status === 'rejected' && kanbanResult.status === 'rejected') {
+      const msg = agentResult.reason instanceof Error ? agentResult.reason.message : 'Erro ao carregar dados do agente';
+      setError(msg);
+    }
+
+    setLoading(false);
   }, []);
 
   const handleRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      const kanban = await fetchKanbanData(true); // forceRefresh
+      const kanban = await fetchKanbanData(true);
       setKanbanData(kanban);
+      setKanbanLoadFailed(false);
     } catch (err) {
       console.error('❌ Erro ao atualizar Kanban:', err);
+      setKanbanLoadFailed(true);
     } finally {
       setRefreshing(false);
     }
@@ -76,6 +91,7 @@ export default function VictorPage() {
     );
   }
 
+  // Tela de erro só quando as duas fontes falharam
   if (error) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-8">
@@ -103,37 +119,23 @@ export default function VictorPage() {
     );
   }
 
-  if (!agent) return null;
+  const metrics = agent?.metricas_agregadas || {};
 
-  const metrics = agent.metricas_agregadas || {};
-
-  // DEBUG: Log das métricas recebidas
-  console.log('[VITOR PAGE] Métricas recebidas:', metrics);
-
-  // Extrair métricas das RPC queries
+  // Extrair métricas das RPC queries (quando agente carregou)
   const receitaRecuperadaTotal = Number(metrics.receita_recuperada_total) || 0;
   const clientesRecuperados = Number(metrics.clientes_recuperados) || 0;
   const tempoMedioHorasRaw = Number(metrics.tempo_medio_horas) || 0;
   const receitaPorDia = metrics.receita_recuperada_por_dia || [];
   const totalParcelasRenegociadas = Number(metrics.total_parcelas_renegociadas) || 0;
 
-  console.log('[VITOR PAGE] Tempo Médio Raw:', tempoMedioHorasRaw);
-  console.log('[VITOR PAGE] Receita Total:', receitaRecuperadaTotal);
-  console.log('[VITOR PAGE] Clientes Recuperados:', clientesRecuperados);
-
-  // Kanban counts
   const clientesPromessa = Number(metrics.clientes_promessa) || 0;
   const clientesEmNegociacao = Number(metrics.clientes_em_negociacao) || 0;
   const clientesEmAberto = Number(metrics.clientes_em_aberto) || 0;
-
-  // Taxa de sucesso
   const taxaSucesso = Number(metrics.taxa_sucesso) || 0;
 
-  // Validar tempo médio (deve ser positivo e menor que 720h = 30 dias)
   const tempoMedioHoras = (tempoMedioHorasRaw > 0 && tempoMedioHorasRaw <= 720) ? tempoMedioHorasRaw : 0;
   const tempoMedioValido = tempoMedioHoras > 0;
 
-  // Preparar dados do funil
   const funnelData = [
     { stage: 'Em Aberto', value: clientesEmAberto, fill: '#9ca3af' },
     { stage: 'Em Negociação', value: clientesEmNegociacao, fill: '#3b82f6' },
@@ -141,13 +143,12 @@ export default function VictorPage() {
     { stage: 'Recuperado', value: clientesRecuperados, fill: '#10b981' },
   ];
 
-  // Preparar dados do gráfico de linha
   const chartData = Array.isArray(receitaPorDia) ? receitaPorDia.map((d: any) => ({
     date: format(new Date(d.dia), 'dd/MM'),
     receita: Number(d.receita_dia) || 0,
   })) : [];
 
-  const maxFunnelValue = Math.max(...funnelData.map(d => d.value));
+  const maxFunnelValue = funnelData.length ? Math.max(...funnelData.map(d => d.value), 1) : 1;
 
   // Determinar cor do tempo médio
   const getTempoMedioColor = (horas: number) => {
@@ -164,7 +165,7 @@ export default function VictorPage() {
     return `${Math.round(horas)}h`;
   };
 
-  const events = agent.events || [];
+  const events = agent?.events || [];
 
   return (
     <div className="space-y-6 p-6">
@@ -176,7 +177,14 @@ export default function VictorPage() {
         </p>
       </div>
 
-      {/* 1. SCORECARD - KPI Cards */}
+      {!agent && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-4 text-amber-800 dark:text-amber-200 text-sm">
+          Dados do agente indisponíveis no momento. Exibindo apenas o Kanban.
+        </div>
+      )}
+
+      {/* 1. SCORECARD - KPI Cards (só com agente) */}
+      {agent && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <div className="flex items-start justify-between p-6">
@@ -248,8 +256,10 @@ export default function VictorPage() {
           </div>
         </Card>
       </div>
+      )}
 
-      {/* 2. GRÁFICO DE EVOLUÇÃO + 3. FUNIL DE RECUPERAÇÃO */}
+      {/* 2. GRÁFICO DE EVOLUÇÃO + 3. FUNIL DE RECUPERAÇÃO (só com agente) */}
+      {agent && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Gráfico de Evolução */}
         <Card>
@@ -353,9 +363,26 @@ export default function VictorPage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
-      {/* 4. KANBAN BOARD - Via Edge Function */}
+      {/* 4. KANBAN BOARD */}
       <div className="mt-6">
+        {kanbanLoadFailed && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-4 flex items-center justify-between gap-4">
+            <span className="text-amber-800 dark:text-amber-200 text-sm">
+              Kanban indisponível (erro de autenticação ou rede). Os cards abaixo estão vazios.
+            </span>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-800/40 rounded-md"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Tentar novamente
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Fluxo de Trabalho</h2>
           <button
@@ -396,7 +423,8 @@ export default function VictorPage() {
         <VictorKanban data={kanbanData} />
       </div>
 
-      {/* 5. FEED DE ATIVIDADE RECENTE */}
+      {/* 5. FEED DE ATIVIDADE RECENTE (só com agente) */}
+      {agent && (
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Atividade Recente</CardTitle>
@@ -435,6 +463,7 @@ export default function VictorPage() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
