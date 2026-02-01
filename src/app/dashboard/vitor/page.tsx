@@ -47,17 +47,26 @@ export default function VictorPage() {
 
     // Mesclar dados de "Em Negociação" do agente (tgv_parcela RENEGOCIADO) com o Kanban
     if (agentData?.metricas_agregadas) {
-      const metrics = agentData.metricas_agregadas;
+      const metrics = agentData.metricas_agregadas as any;
       const clientesEmNegociacao = Number(metrics.clientes_em_negociacao) || 0;
       const valorEmNegociacao = Number(metrics.valor_total_em_negociacao) || 0;
+      const listaClientes = metrics.clientes_em_negociacao_lista || [];
 
       // Sobrescrever "Em Negociação" com dados de tgv_parcela RENEGOCIADO
       kanban.meta['Em Negociacao'] = {
         count: clientesEmNegociacao,
         total_recuperado: valorEmNegociacao,
       };
+
+      // Popular a lista de clientes para o Kanban visual
+      kanban.kanban['Em Negociacao'] = listaClientes.map((c: { id_cliente: string; nome_cliente: string | null; valor_total: number }) => ({
+        id_cliente: c.id_cliente,
+        nome_cliente: c.nome_cliente,
+        valor_recuperado: c.valor_total,
+      }));
+
       console.log('[Vitor] Em Negociação atualizado com dados de tgv_parcela RENEGOCIADO:',
-        clientesEmNegociacao, 'clientes, R$', valorEmNegociacao);
+        clientesEmNegociacao, 'clientes, R$', valorEmNegociacao, '| Cards:', listaClientes.length);
     }
 
     setAgent(agentData);

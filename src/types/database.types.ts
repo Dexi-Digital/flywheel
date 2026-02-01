@@ -56,6 +56,13 @@ export interface Agent {
   events: Event[];
 }
 
+// Tipo para cliente agrupado no Kanban (Em Negociação)
+export interface KanbanClienteAgrupado {
+  id_cliente: string;
+  nome_cliente: string | null;
+  valor_total: number;
+}
+
 export interface AgentMetrics {
   leads_ativos?: number;
   conversoes?: number;
@@ -87,7 +94,9 @@ export interface AgentMetrics {
   // Kanban / Victor: contagens por status (Recuperado, Promessa de Pagamento, etc.)
   summary_counts?: Record<string, number>;
   taxa_sucesso_percentual?: number;
-  [key: string]: number | Record<string, number> | undefined;
+  // Lista de clientes em negociação (tgv_parcela RENEGOCIADO) para o Kanban visual
+  clientes_em_negociacao_lista?: KanbanClienteAgrupado[];
+  [key: string]: number | Record<string, number> | KanbanClienteAgrupado[] | undefined;
 }
 
 export interface Lead {

@@ -273,17 +273,40 @@ export const victorService: AgentService = {
 
     const clientes_recuperados = Number(kanban_counts['Recuperado'] || 0);
     // "Em Negociação" agora vem das parcelas com status_renegociacao = 'RENEGOCIADO'
-    // Contar clientes únicos (um cliente pode ter várias parcelas renegociadas)
+    // Agrupar parcelas por cliente para criar lista do Kanban
     const parcelasRenegociadas = data.parcelasRenegociadas || [];
-    const clientesEmNegociacaoSet = new Set(
-      parcelasRenegociadas.map((p: any) => String(p.id_cliente || '')).filter((id: string) => id !== '')
+    const clientesAgrupados: Record<string, { id_cliente: string; nome_cliente: string | null; valor_total: number }> = {};
+
+    for (const p of parcelasRenegociadas) {
+      const idCliente = String(p.id_cliente || '');
+      if (!idCliente) continue;
+
+      if (!clientesAgrupados[idCliente]) {
+        clientesAgrupados[idCliente] = {
+          id_cliente: idCliente,
+          nome_cliente: null, // Será preenchido se disponível
+          valor_total: 0,
+        };
+      }
+      clientesAgrupados[idCliente].valor_total += Number(p.valor_parcela) || 0;
+    }
+
+    // Tentar buscar nomes dos clientes do acompanhamento_leads
+    const acompanhamento = data.acompanhamento || [];
+    for (const lead of acompanhamento) {
+      const idCliente = String(lead.id_cliente || '');
+      if (idCliente && clientesAgrupados[idCliente]) {
+        clientesAgrupados[idCliente].nome_cliente = lead.nome_cliente || null;
+      }
+    }
+
+    // Converter para array para o Kanban
+    const clientes_em_negociacao_lista = Object.values(clientesAgrupados);
+    const clientes_em_negociacao = clientes_em_negociacao_lista.length;
+    const valor_total_em_negociacao = clientes_em_negociacao_lista.reduce(
+      (sum, c) => sum + c.valor_total, 0
     );
-    const clientes_em_negociacao = clientesEmNegociacaoSet.size;
-    // Calcular valor total das parcelas renegociadas
-    const valor_total_em_negociacao = parcelasRenegociadas.reduce(
-      (sum: number, p: any) => sum + (Number(p.valor_parcela) || 0),
-      0
-    );
+
     console.log('[VICTOR DEBUG] Parcelas RENEGOCIADO:', parcelasRenegociadas.length,
       '| Clientes únicos:', clientes_em_negociacao,
       '| Valor total:', valor_total_em_negociacao);
@@ -494,6 +517,7 @@ export const victorService: AgentService = {
         // ===== KANBAN =====
         clientes_recuperados: clientes_recuperados,
         clientes_em_negociacao: clientes_em_negociacao, // Agora vem de tgv_parcela com status_renegociacao = 'RENEGOCIADO'
+        clientes_em_negociacao_lista: clientes_em_negociacao_lista, // Lista de clientes para o Kanban visual
         valor_total_em_negociacao: valor_total_em_negociacao, // Valor total das parcelas renegociadas
         clientes_em_aberto: clientes_em_aberto,
         // Fornecer mapeamento direto para a UI consumir os counts do servidor
