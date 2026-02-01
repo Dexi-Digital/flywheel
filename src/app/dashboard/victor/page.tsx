@@ -87,19 +87,23 @@ export default function VictorPage() {
   const metrics = agent.metricas_agregadas || {};
 
   // Extrair métricas das RPC queries
-  const receitaRecuperadaTotal = metrics.receita_recuperada_total || 0;
-  const clientesRecuperados = metrics.clientes_recuperados || 0;
-  const tempoMedioHoras = metrics.tempo_medio_horas || 0;
+  const receitaRecuperadaTotal = Number(metrics.receita_recuperada_total) || 0;
+  const clientesRecuperados = Number(metrics.clientes_recuperados) || 0;
+  const tempoMedioHorasRaw = Number(metrics.tempo_medio_horas) || 0;
   const receitaPorDia = metrics.receita_recuperada_por_dia || [];
-  const totalParcelasRenegociadas = metrics.total_parcelas_renegociadas || 0;
+  const totalParcelasRenegociadas = Number(metrics.total_parcelas_renegociadas) || 0;
 
   // Kanban counts
-  const clientesPromessa = metrics.clientes_promessa || 0;
-  const clientesEmNegociacao = metrics.clientes_em_negociacao || 0;
-  const clientesEmAberto = metrics.clientes_em_aberto || 0;
+  const clientesPromessa = Number(metrics.clientes_promessa) || 0;
+  const clientesEmNegociacao = Number(metrics.clientes_em_negociacao) || 0;
+  const clientesEmAberto = Number(metrics.clientes_em_aberto) || 0;
 
   // Taxa de sucesso
-  const taxaSucesso = metrics.taxa_sucesso || 0;
+  const taxaSucesso = Number(metrics.taxa_sucesso) || 0;
+
+  // Validar tempo médio (deve ser positivo e menor que 720h = 30 dias)
+  const tempoMedioHoras = (tempoMedioHorasRaw > 0 && tempoMedioHorasRaw <= 720) ? tempoMedioHorasRaw : 0;
+  const tempoMedioValido = tempoMedioHoras > 0;
 
   // Preparar dados do funil
   const funnelData = [
@@ -191,12 +195,25 @@ export default function VictorPage() {
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
                 Tempo Médio de Resolução
               </p>
-              <p className={`mt-2 text-3xl font-semibold ${getTempoMedioColor(tempoMedioHoras)}`}>
-                {formatTempoMedio(tempoMedioHoras)}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                {tempoMedioHoras < 48 ? 'Excelente' : tempoMedioHoras < 96 ? 'Bom' : 'Atenção necessária'}
-              </p>
+              {tempoMedioValido ? (
+                <>
+                  <p className={`mt-2 text-3xl font-semibold ${getTempoMedioColor(tempoMedioHoras)}`}>
+                    {formatTempoMedio(tempoMedioHoras)}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {tempoMedioHoras < 48 ? 'Excelente' : tempoMedioHoras < 96 ? 'Bom' : 'Atenção necessária'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 text-3xl font-semibold text-gray-400">
+                    N/A
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Dados insuficientes
+                  </p>
+                </>
+              )}
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800">
               <Clock className="h-6 w-6" />

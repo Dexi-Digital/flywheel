@@ -31,25 +31,47 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 3) Tempo Médio de Resolução (em horas)
+-- Calcula o tempo entre a primeira interação (disparo/mensagem) e a primeira renegociação
 CREATE OR REPLACE FUNCTION get_tempo_medio_resolucao()
 RETURNS TABLE (tempo_medio_horas numeric) AS $$
 BEGIN
   RETURN QUERY
-  WITH primeira_parcela AS (
+  WITH primeira_interacao AS (
+    -- Pega a primeira interação (disparo ou mensagem) por cliente
     SELECT
-      r.id AS renegociacao_id,
-      r.id_cliente,
-      r.created_at AS inicio,
-      MIN(tp.data_hora_importacao) AS primeira_renegociacao_em
-    FROM tgv_renegociacao r
-    JOIN tgv_parcela tp ON tp.id_cliente = r.id_cliente
-    WHERE tp.status_renegociacao = 'RENEGOCIADO'
-    GROUP BY r.id, r.id_cliente, r.created_at
+      id_cliente,
+      MIN(created_at) AS primeira_acao
+    FROM (
+      SELECT id_cliente, created_at FROM controle_disparo WHERE created_at IS NOT NULL
+      UNION ALL
+      SELECT id_cliente, created_at FROM tgv_renegociacao WHERE created_at IS NOT NULL
+    ) interacoes
+    GROUP BY id_cliente
+  ),
+  primeira_renegociacao AS (
+    -- Pega a primeira parcela renegociada por cliente
+    SELECT
+      id_cliente,
+      MIN(data_hora_importacao) AS primeira_renegociacao_em
+    FROM tgv_parcela
+    WHERE status_renegociacao = 'RENEGOCIADO'
+      AND data_hora_importacao IS NOT NULL
+    GROUP BY id_cliente
   )
   SELECT
-    COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (pp.primeira_renegociacao_em - pp.inicio)) / 3600)::numeric, 2), 0) AS tempo_medio_horas
-  FROM primeira_parcela pp
-  WHERE pp.primeira_renegociacao_em IS NOT NULL;
+    COALESCE(
+      ROUND(
+        AVG(
+          ABS(EXTRACT(EPOCH FROM (pr.primeira_renegociacao_em - pi.primeira_acao)) / 3600)
+        )::numeric,
+        2
+      ),
+      0
+    ) AS tempo_medio_horas
+  FROM primeira_interacao pi
+  JOIN primeira_renegociacao pr ON pi.id_cliente = pr.id_cliente
+  WHERE pr.primeira_renegociacao_em > pi.primeira_acao  -- Apenas casos válidos
+    AND EXTRACT(EPOCH FROM (pr.primeira_renegociacao_em - pi.primeira_acao)) / 3600 BETWEEN 0 AND 720;  -- Entre 0 e 30 dias
 END;
 $$ LANGUAGE plpgsql;
 
