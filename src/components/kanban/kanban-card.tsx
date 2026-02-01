@@ -1,21 +1,24 @@
 'use client';
 
-import { LeadWithAgent } from '@/types/database.types';
+import { LeadWithAgent, AgentType } from '@/types/database.types';
 import { Avatar } from '@/components/ui/avatar';
 import { Building2, Mail, Phone, DollarSign, Clock } from 'lucide-react';
 import { formatCurrency } from '@/lib/aggregated-data';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { maskNameForPrivacy } from '@/lib/utils';
 
 interface KanbanCardProps {
   lead: LeadWithAgent;
+  agentType?: AgentType;
 }
 
-export function KanbanCard({ lead }: KanbanCardProps) {
+export function KanbanCard({ lead, agentType }: KanbanCardProps) {
+  const displayName = agentType === 'FINANCEIRO' ? maskNameForPrivacy(lead.nome) : lead.nome;
   return (
     <div className="group cursor-pointer rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-gray-700 dark:bg-gray-900">
       {/* Lead Name */}
-      <h4 className="mb-2 font-semibold text-gray-900 dark:text-white">{lead.nome}</h4>
+      <h4 className="mb-2 font-semibold text-gray-900 dark:text-white" title={agentType === 'FINANCEIRO' ? 'Nome mascarado por privacidade' : undefined}>{displayName}</h4>
 
       {/* Company */}
       {lead.empresa && (

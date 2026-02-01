@@ -154,7 +154,7 @@ export function Sidebar() {
       {/* Footer */}
       <div className="border-t border-gray-200 p-4 dark:border-gray-800">
         <Link
-          href="/settings"
+          href="/dashboard/settings"
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
         >
           <Settings className="h-5 w-5" />

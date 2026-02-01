@@ -233,10 +233,24 @@ export const victorService: AgentService = {
     // 3. FLUXO DE TRABALHO (Kanban - contagem por status)
     const kanbanRes = await sb.rpc('get_kanban_status');
     console.log('[VICTOR DEBUG] Kanban RPC:', kanbanRes);
-    const kanban_counts = (kanbanRes.data || []).reduce((acc: any, row: any) => {
-      acc[row.status] = row.quantidade;
-      return acc;
-    }, {});
+    const kanbanRows = kanbanRes.data || [];
+    // Suportar dois formatos: (1) agregado { status, quantidade } ou (2) lista de clientes { status_kanban, id_cliente, ... }
+    const kanban_counts: Record<string, number> = {};
+    if (kanbanRows.length > 0) {
+      const first = kanbanRows[0];
+      if (first != null && 'quantidade' in first && 'status' in first) {
+        // Formato agregado (status, quantidade)
+        kanbanRows.forEach((row: any) => {
+          kanban_counts[String(row.status)] = Number(row.quantidade) || 0;
+        });
+      } else {
+        // Formato lista de clientes (status_kanban, id_cliente, ...) — derivar contagens
+        kanbanRows.forEach((row: any) => {
+          const status = row.status_kanban || row.status || 'Em Aberto';
+          kanban_counts[status] = (kanban_counts[status] || 0) + 1;
+        });
+      }
+    }
 
     const clientes_recuperados = Number(kanban_counts['Recuperado'] || 0);
     const clientes_promessa = Number(kanban_counts['Promessa de Pagamento'] || 0);
@@ -244,9 +258,19 @@ export const victorService: AgentService = {
     const clientes_em_aberto = Number(kanban_counts['Em Aberto'] || 0);
 
     // 4. ATIVIDADE RECENTE (últimos 100 eventos combinados)
-    const atividadeRes = await sb.rpc('get_atividade_recente');
-    console.log('[VICTOR DEBUG] Atividade Recente RPC:', atividadeRes.data?.length, 'eventos');
-    const atividades_recentes = atividadeRes.data || [];
+    let atividades_recentes: any[] = [];
+    try {
+      // PostgREST exige body; função sem parâmetros usa {}.
+      const atividadeRes = await sb.rpc('get_atividade_recente', {});
+      if (atividadeRes.error) {
+        console.warn('[VICTOR DEBUG] Atividade Recente RPC error:', atividadeRes.error);
+      } else {
+        atividades_recentes = atividadeRes.data || [];
+      }
+    } catch (e) {
+      console.warn('[VICTOR DEBUG] Atividade Recente RPC exception:', e);
+    }
+    console.log('[VICTOR DEBUG] Atividade Recente RPC:', atividades_recentes.length, 'eventos');
 
     // ========== MÉTRICAS CALCULADAS LOCALMENTE ==========
 

@@ -71,3 +71,23 @@ export function getStatusLabel(status: string): string {
   return labels[status] || status;
 }
 
+/** Máscara de privacidade para nome: uma letra + *** (ex.: J***). Se null/vazio, usa letra aleatória. */
+export function maskNameForPrivacy(nome: string | null | undefined): string {
+  if (nome != null && String(nome).trim() !== '') {
+    const first = String(nome).trim()[0].toUpperCase();
+    return `${first}***`;
+  }
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+  return `${randomLetter}***`;
+}
+
+/** Máscara de privacidade para CPF: ***.***.***-XX (mostra só os 2 últimos dígitos). */
+export function maskCpf(cpf: string | null | undefined): string {
+  if (cpf == null || String(cpf).trim() === '') return '***.***.***-**';
+  const digits = String(cpf).replace(/\D/g, '');
+  if (digits.length < 2) return '***.***.***-**';
+  const lastTwo = digits.slice(-2);
+  return `***.***.***-${lastTwo}`;
+}
+

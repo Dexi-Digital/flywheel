@@ -8,7 +8,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { KanbanBoard } from '@/components/kanban/kanban-board';
 import { IntelligenceDrawer } from '@/components/layout/intelligence-drawer';
 import { buildService } from '@/services/factory';
-import { getAgentTypeLabel, formatCurrency, getStatusLabel, getStatusColor } from '@/lib/utils';
+import { getAgentTypeLabel, formatCurrency, getStatusLabel, getStatusColor, maskNameForPrivacy } from '@/lib/utils';
 import { Clock, Users, TrendingUp, DollarSign, Zap, RefreshCcw, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -153,30 +153,12 @@ export default function AgentPage({ params }: PageProps) {
         ];
       case 'FINANCEIRO': {
         // support multiple possible metric keys coming from SQL/backend
-        const inadimplencias = (
-          agent.metricas_agregadas.total_parcelas_renegociadas ||
-          agent.metricas_agregadas.inadimplencias_resolvidas ||
-          agent.metricas_agregadas.comprovantes_recebidos ||
-          0
-        );
-
-        const tempoMedio = (
-          agent.metricas_agregadas.tempo_medio_horas ||
-          agent.metricas_agregadas.tempo_medio_resolucao ||
-          0
-        );
-
-        const taxaRecuperacao = (
-          agent.metricas_agregadas.taxa_sucesso ||
-          (agent.metricas_agregadas.taxa_sucesso_percentual ? agent.metricas_agregadas.taxa_sucesso_percentual / 100 : undefined) ||
-          0
-        );
-
-        const receitaRecuperada = (
-          agent.metricas_agregadas.receita_recuperada_total ||
-          agent.metricas_agregadas.receita_recuperada ||
-          0
-        );
+        const ma = agent.metricas_agregadas;
+        const inadimplencias = Number(ma.total_parcelas_renegociadas ?? ma.inadimplencias_resolvidas ?? ma.comprovantes_recebidos ?? 0) || 0;
+        const tempoMedio = Number(ma.tempo_medio_horas ?? ma.tempo_medio_resolucao ?? 0) || 0;
+        const taxaSucessoRaw = Number(ma.taxa_sucesso ?? 0) || (ma.taxa_sucesso_percentual != null ? Number(ma.taxa_sucesso_percentual) / 100 : 0);
+        const taxaRecuperacao = typeof taxaSucessoRaw === 'number' ? taxaSucessoRaw : 0;
+        const receitaRecuperada = Number(ma.receita_recuperada_total ?? ma.receita_recuperada ?? 0) || 0;
 
         return [
           { title: 'Inadimplências Resolvidas', value: inadimplencias, icon: <RefreshCcw className="h-5 w-5" /> },
@@ -450,8 +432,8 @@ export default function AgentPage({ params }: PageProps) {
                   className="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-gray-700"
                 >
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {lead.nome}
+                    <p className="text-sm font-medium text-gray-900 dark:text-white" title={agent.tipo === 'FINANCEIRO' ? 'Nome mascarado por privacidade' : undefined}>
+                      {agent.tipo === 'FINANCEIRO' ? maskNameForPrivacy(lead.nome) : lead.nome}
                     </p>
                     <p className="text-xs text-gray-500">{lead.empresa}</p>
                   </div>

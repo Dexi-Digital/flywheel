@@ -15,6 +15,10 @@ export async function GET(request: NextRequest, context: { params: any }) {
     return NextResponse.json({ ok: true, agent });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    console.error(`[API agents] ${agentId} error:`, err);
+    return NextResponse.json(
+      { ok: false, error: message, agentId },
+      { status: 500 }
+    );
   }
 }

@@ -31,9 +31,11 @@ export type LeadOrigin =
 
 export type EventType = 
   | 'LEAD_CAPTURADO'
+  | 'LEAD_CRIADO'
   | 'LEAD_RESPONDIDO'
   | 'LEAD_ESTAGNADO'
   | 'LEAD_TRANSBORDADO'
+  | 'MENSAGEM_ENVIADA'
   | 'CONVERSAO'
   | 'RECUPERACAO'
   | 'INADIMPLENCIA_RESOLVIDA'
@@ -82,7 +84,10 @@ export interface AgentMetrics {
   duvidas_tecnicas_resolvidas?: number;
   escalacoes_nivel2?: number;
   lacunas_identificadas?: number;
-  [key: string]: number | undefined;
+  // Kanban / Victor: contagens por status (Recuperado, Promessa de Pagamento, etc.)
+  summary_counts?: Record<string, number>;
+  taxa_sucesso_percentual?: number;
+  [key: string]: number | Record<string, number> | undefined;
 }
 
 export interface Lead {

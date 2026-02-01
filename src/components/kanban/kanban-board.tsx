@@ -78,7 +78,7 @@ export function KanbanBoard({ leads, agentType, summaryCounts }: KanbanBoardProp
             color={column.color}
           >
             {leadsByStatus[column.status].map((lead) => (
-              <KanbanCard key={lead.id} lead={lead} />
+              <KanbanCard key={lead.id} lead={lead} agentType={agentType} />
             ))}
           </KanbanColumn>
         );

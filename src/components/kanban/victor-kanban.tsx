@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, maskCpf, maskNameForPrivacy } from '@/lib/utils';
 import type { KanbanApiResponse, KanbanClient, KanbanStage } from '@/services/kanban-api.service';
 
 interface VictorKanbanProps {
@@ -19,11 +19,11 @@ function ClientCard({ client }: { client: KanbanClient }) {
   return (
     <div className="bg-white dark:bg-gray-900 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow cursor-pointer">
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
-          {client.id_cliente}
+        <span className="text-xs font-mono text-gray-500 dark:text-gray-400" title="CPF mascarado por privacidade">
+          {maskCpf(client.id_cliente)}
         </span>
-        <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-          {client.nome_cliente || '—'}
+        <span className="text-sm font-medium text-gray-900 dark:text-white truncate" title="Nome mascarado por privacidade">
+          {maskNameForPrivacy(client.nome_cliente)}
         </span>
         <span className="text-sm font-semibold text-green-600 dark:text-green-400">
           {formatCurrency(client.valor_recuperado || 0)}
