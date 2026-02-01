@@ -246,6 +246,40 @@ export const victorService: AgentService = {
     // 10. Conversas ativas (memória de sessão)
     const conversas_ativas = data.memoria.length;
 
+    // ===== CÁLCULOS REAIS PARA MÉTRICAS FINANCEIRAS =====
+
+    // 11. Inadimplências resolvidas = comprovantes recebidos (pagamentos confirmados)
+    const inadimplencias_resolvidas = comprovantes_recebidos;
+
+    // 12. Taxa de sucesso real = (comprovantes / contratos ativos) * 100
+    const taxa_sucesso = contratos_ativos > 0 ? 
+      (comprovantes_recebidos / contratos_ativos) : 0;
+
+    // 13. Receita recuperada = soma dos valores dos comprovantes
+    // Nota: Precisamos calcular a partir dos pagamentos confirmados
+    // Para agora, usamos o número de comprovantes * valor médio por parcela
+    const valor_medio_parcela = data.parcelas.length > 0 ?
+      data.parcelas.reduce((sum, p) => sum + (Number(p.valor_parcela) || 0), 0) / data.parcelas.length : 0;
+    const receita_recuperada = comprovantes_recebidos * valor_medio_parcela;
+
+    // 14. Tempo médio de resolução (em horas)
+    // Calcula a diferença entre data de disparo mais recente e mais antiga
+    let tempo_medio_resolucao = 0;
+    if (data.disparo.length > 1) {
+      const datas = data.disparo
+        .map(d => {
+          const dataStr = d.dateTime_disparo;
+          return dataStr ? new Date(dataStr) : null;
+        })
+        .filter((d): d is Date => d !== null);
+      
+      if (datas.length > 1) {
+        datas.sort((a, b) => a.getTime() - b.getTime());
+        const tempoMs = datas[datas.length - 1].getTime() - datas[0].getTime();
+        tempo_medio_resolucao = Math.round(tempoMs / (1000 * 60 * 60)); // converter para horas
+      }
+    }
+
     // Normalizar leads da base de acompanhamento
     const leads = data.acompanhamento.map((r) => normalizeLead(r, agentId));
 
@@ -268,7 +302,8 @@ export const victorService: AgentService = {
     // Log summary
     console.log(`[Victor TGV] Contratos: ${contratos_ativos}, Parcelas Atraso: ${parcelas_em_atraso} (${parcelas_criticas} críticas), ` +
       `Valor Risco: R$ ${valor_em_risco.toLocaleString('pt-BR')}, Taxa Resposta: ${taxa_resposta.toFixed(1)}%, ` +
-      `Renegociações: ${renegociacoes_ativas}, Mensagens: ${data.mensagens.length}`);
+      `Renegociações: ${renegociacoes_ativas}, Inadimplências Resolvidas: ${inadimplencias_resolvidas}, Taxa Sucesso: ${(taxa_sucesso * 100).toFixed(1)}%, ` +
+      `Receita Recuperada: R$ ${receita_recuperada.toLocaleString('pt-BR')}, Tempo Médio: ${tempo_medio_resolucao}h`);
 
     return buildAgentCommon(agentId, 'Victor', leads, events, {
       tipo: 'FINANCEIRO',
@@ -289,6 +324,11 @@ export const victorService: AgentService = {
         conversas_ativas: conversas_ativas,
         mensagens_enviadas: mensagens_enviadas,
         mensagens_recebidas: mensagens_recebidas,
+        // ===== MÉTRICAS REAIS CALCULADAS =====
+        inadimplencias_resolvidas: inadimplencias_resolvidas,
+        taxa_sucesso: taxa_sucesso,
+        receita_recuperada: receita_recuperada,
+        tempo_medio_resolucao: tempo_medio_resolucao,
       },
     });
   },

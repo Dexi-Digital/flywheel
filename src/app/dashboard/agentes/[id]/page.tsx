@@ -132,7 +132,7 @@ export default function AgentPage({ params }: PageProps) {
     switch (agent.tipo) {
       case 'SDR':
         return [
-          { title: 'Speed to Lead', value: `${agent.metricas_agregadas.tempo_medio_resposta || 23}s`, icon: <Clock className="h-5 w-5" /> },
+          { title: 'Speed to Lead', value: `${agent.metricas_agregadas.tempo_medio_resposta || 0}s`, icon: <Clock className="h-5 w-5" /> },
           { title: 'Leads Ativos', value: agent.metricas_agregadas.leads_ativos || agent.leads.length, icon: <Users className="h-5 w-5" /> },
           { title: 'Disparos Hoje', value: agent.metricas_agregadas.disparos_hoje || 0, icon: <Zap className="h-5 w-5" /> },
           { title: 'Taxa de Resposta', value: `${((agent.metricas_agregadas.taxa_resposta || 0) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
@@ -141,21 +141,21 @@ export default function AgentPage({ params }: PageProps) {
         return [
           { title: 'Disparos Hoje', value: agent.metricas_agregadas.disparos_hoje || 0, icon: <Users className="h-5 w-5" /> },
           { title: 'Taxa de Resposta', value: `${((agent.metricas_agregadas.taxa_resposta || 0) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
-          { title: 'Reuniões Agendadas', value: agent.metricas_agregadas.conversoes || 89, icon: <Zap className="h-5 w-5" /> },
+          { title: 'Reuniões Agendadas', value: agent.metricas_agregadas.conversoes || 0, icon: <Zap className="h-5 w-5" /> },
           { title: 'Receita Gerada', value: formatCurrency(receitaTotal), icon: <DollarSign className="h-5 w-5" /> },
         ];
       case 'WINBACK':
         return [
-          { title: 'Leads Reativados', value: agent.metricas_agregadas.conversoes || 67, icon: <RefreshCcw className="h-5 w-5" /> },
-          { title: 'Taxa de Sucesso', value: `${((agent.metricas_agregadas.taxa_sucesso || 0.45) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
+          { title: 'Leads Reativados', value: agent.metricas_agregadas.conversoes || 0, icon: <RefreshCcw className="h-5 w-5" /> },
+          { title: 'Taxa de Sucesso', value: `${((agent.metricas_agregadas.taxa_sucesso || 0) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
           { title: 'Receita Recuperada', value: formatCurrency(agent.metricas_agregadas.receita_recuperada || 0), icon: <DollarSign className="h-5 w-5" /> },
-          { title: 'CAC Evitado', value: formatCurrency((agent.metricas_agregadas.conversoes || 67) * 1500), icon: <Zap className="h-5 w-5" /> },
+          { title: 'CAC Evitado', value: formatCurrency((agent.metricas_agregadas.conversoes || 0) * 1500), icon: <Zap className="h-5 w-5" /> },
         ];
       case 'FINANCEIRO':
         return [
-          { title: 'Inadimplências Resolvidas', value: agent.metricas_agregadas.inadimplencias_resolvidas || 189, icon: <RefreshCcw className="h-5 w-5" /> },
-          { title: 'Tempo Médio Resolução', value: `${agent.metricas_agregadas.tempo_medio_resolucao || 72}h`, icon: <Clock className="h-5 w-5" /> },
-          { title: 'Taxa de Recuperação', value: `${((agent.metricas_agregadas.taxa_sucesso || 0.78) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
+          { title: 'Inadimplências Resolvidas', value: agent.metricas_agregadas.inadimplencias_resolvidas || 0, icon: <RefreshCcw className="h-5 w-5" /> },
+          { title: 'Tempo Médio Resolução', value: `${agent.metricas_agregadas.tempo_medio_resolucao || 0}h`, icon: <Clock className="h-5 w-5" /> },
+          { title: 'Taxa de Recuperação', value: `${((agent.metricas_agregadas.taxa_sucesso || 0) * 100).toFixed(0)}%`, icon: <TrendingUp className="h-5 w-5" /> },
           { title: 'Receita Recuperada', value: formatCurrency(agent.metricas_agregadas.receita_recuperada || 0), icon: <DollarSign className="h-5 w-5" /> },
         ];
       default:
