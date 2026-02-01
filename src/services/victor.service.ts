@@ -357,7 +357,7 @@ export const victorService: AgentService = {
         origem: 'Inbound',
         status: status,
         agente_atual_id: agentId,
-        tempo_parado: diasAtraso > 0 ? diasAtraso : undefined,
+        tempo_parado: diasAtraso > 0 ? `${diasAtraso} dias` : undefined,
         valor_potencial: Math.round(valorDevido),
         ultima_interacao: createdAt,
         created_at: createdAt,
