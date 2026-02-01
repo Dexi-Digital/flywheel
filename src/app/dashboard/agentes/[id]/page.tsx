@@ -413,12 +413,23 @@ export default function AgentPage({ params }: PageProps) {
               agentType={agent.tipo}
               summaryCounts={(() => {
                 const serverCounts = (agent.metricas_agregadas as any).summary_counts;
-                if (serverCounts && typeof serverCounts === 'object') return serverCounts as Record<string, number>;
+                if (serverCounts && typeof serverCounts === 'object') {
+                  // Normalizar chaves: backend pode retornar "Em Negociacao" (sem ç)
+                  const m = serverCounts as Record<string, number>;
+                  return {
+                    'Recuperado': m['Recuperado'] ?? 0,
+                    'Promessa de Pagamento': m['Promessa de Pagamento'] ?? 0,
+                    'Em Negociação': m['Em Negociação'] ?? m['Em Negociacao'] ?? 0,
+                    'Em Aberto': m['Em Aberto'] ?? 0,
+                  };
+                }
+                // Fallback alinhado com as chaves do Victor (victor.service.ts)
+                const ma = agent.metricas_agregadas as any;
                 return {
-                  'Recuperado': agent.metricas_agregadas.total_parcelas_renegociadas || agent.metricas_agregadas.inadimplencias_resolvidas || 0,
-                  'Promessa de Pagamento': agent.metricas_agregadas.promessa_pagamento || 0,
-                  'Em Negociação': agent.metricas_agregadas.em_negociacao || 0,
-                  'Em Aberto': agent.metricas_agregadas.em_aberto || 0,
+                  'Recuperado': ma.clientes_recuperados ?? ma.total_parcelas_renegociadas ?? ma.inadimplencias_resolvidas ?? 0,
+                  'Promessa de Pagamento': ma.clientes_promessa ?? 0,
+                  'Em Negociação': ma.clientes_em_negociacao ?? 0,
+                  'Em Aberto': ma.clientes_em_aberto ?? 0,
                 };
               })()}
             />
