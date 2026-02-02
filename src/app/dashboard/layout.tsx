@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { DemoBanner } from '@/components/layout/demo-banner';
-import { LivenessTicker } from '@/components/layout/liveness-ticker';
 import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 
@@ -54,7 +53,6 @@ export default function DashboardLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         <DemoBanner />
         <Header />
-        <LivenessTicker />
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>
