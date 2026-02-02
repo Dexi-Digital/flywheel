@@ -4,6 +4,13 @@ import { getBrowserTenantClient } from '@/lib/supabase/agentClients';
 import { getTenantConfig } from '@/lib/supabase/agents';
 import { Lead, Event } from '@/types/database.types';
 import { buildAgentCommon } from './common';
+import type {
+  LuisKpiPulse,
+  LuisQualificationLead,
+  LuisTrafficData,
+  LuisVehicleStat,
+  LuisGovernanceData,
+} from '@/types/luis-api.types';
 
 function toStr(v: unknown): string | undefined {
   if (v === null || v === undefined) return undefined;
@@ -247,3 +254,339 @@ export const luisService: AgentService = {
     });
   },
 };
+
+// ============================================================================
+// KPI PULSE - PULSO GERAL DA OPERAÇÃO LUÍS
+// ============================================================================
+
+/**
+ * Busca as métricas de pulso (KPI Pulse) do agente Luís.
+ *
+ * @returns Objeto com métricas de KPI ou null em caso de erro.
+ *
+ * @ui_hints
+ * - `leads_fora_horario` é a MÉTRICA PRINCIPAL DE VALOR do Luís
+ *   → Deve ter DESTAQUE VISUAL (card maior, cor diferenciada, ícone especial)
+ *   → Representa leads que seriam perdidos sem atendimento automático
+ *
+ * @example
+ * const pulse = await getLuisKpiPulse();
+ * if (pulse) {
+ *   console.log(`Leads fora do horário: ${pulse.leads_fora_horario}`);
+ * }
+ */
+export async function getLuisKpiPulse(): Promise<LuisKpiPulse | null> {
+  try {
+    // Obter configuração e cliente Supabase para o Luís
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+
+    // Chamar a função RPC do Supabase
+    // POST https://<supabase_url>/rest/v1/rpc/get_luis_kpi_pulse
+    const { data, error } = await sb.rpc('get_luis_kpi_pulse');
+
+    // Tratamento de erro do Supabase
+    if (error) {
+      console.error('[Luis KPI Pulse] Erro ao buscar KPIs:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return null;
+    }
+
+    // Validar se data existe
+    if (!data) {
+      console.warn('[Luis KPI Pulse] Nenhum dado retornado');
+      return null;
+    }
+
+    // Log de debug para desenvolvimento
+    console.log('[Luis KPI Pulse] Dados recebidos:', data);
+
+    return data as LuisKpiPulse;
+  } catch (err) {
+    console.error('[Luis KPI Pulse] Erro inesperado:', err);
+    return null;
+  }
+}
+
+// ============================================================================
+// QUALIFICATION LIST - LISTA DE LEADS QUENTES (PLANTÃO)
+// ============================================================================
+
+/**
+ * Busca a lista de leads qualificados ("Leads Quentes") do agente Luís.
+ *
+ * Retorna os Top 20 leads que chegaram no plantão e foram pré-qualificados
+ * pela IA, prontos para atendimento humano (agendamento).
+ *
+ * @returns Array de leads qualificados ou null em caso de erro.
+ *
+ * @ui_hints
+ * - Se `solicitou_humano === true`: Badge "Solicitou Agente" com prioridade MÁXIMA
+ * - `resumo_ia`: Exibir truncado com tooltip ou em linha secundária menor
+ * - Ordenar por prioridade: solicitou_humano primeiro, depois por horario_entrada
+ *
+ * @example
+ * const leads = await getLuisQualificationList();
+ * if (leads) {
+ *   const urgentes = leads.filter(l => l.solicitou_humano);
+ *   console.log(`${urgentes.length} leads solicitaram agente humano`);
+ * }
+ */
+export async function getLuisQualificationList(): Promise<LuisQualificationLead[] | null> {
+  try {
+    // Obter configuração e cliente Supabase para o Luís
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+
+    // Chamar a função RPC do Supabase
+    // POST https://<supabase_url>/rest/v1/rpc/get_luis_qualification_list
+    const { data, error } = await sb.rpc('get_luis_qualification_list');
+
+    // Tratamento de erro do Supabase
+    if (error) {
+      console.error('[Luis Qualification List] Erro ao buscar leads qualificados:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return null;
+    }
+
+    // Validar se data existe e é um array
+    if (!data || !Array.isArray(data)) {
+      console.warn('[Luis Qualification List] Nenhum dado retornado ou formato inválido');
+      return [];
+    }
+
+    // Log de debug para desenvolvimento
+    console.log(`[Luis Qualification List] ${data.length} leads qualificados encontrados`);
+
+    return data as LuisQualificationLead[];
+  } catch (err) {
+    console.error('[Luis Qualification List] Erro inesperado:', err);
+    return null;
+  }
+}
+
+// ============================================================================
+// TRAFFIC HEATMAP - DISTRIBUIÇÃO DE TRÁFEGO POR HORA
+// ============================================================================
+
+/**
+ * Busca a distribuição de tráfego por hora do agente Luís.
+ *
+ * Retorna o volume de leads acumulado por hora do dia (0-23h),
+ * permitindo identificar picos de atendimento, especialmente os noturnos.
+ *
+ * @returns Array com 24 objetos (um por hora) ou null em caso de erro.
+ *
+ * @ui_hints (Recharts BarChart)
+ * - Tipo de gráfico: BarChart vertical
+ * - Eixo X: hora (formatar 0 -> "00h", 13 -> "13h")
+ * - Eixo Y: volume de leads
+ * - Tooltip: "X leads às Yh" (ex: "15 leads às 22h")
+ *
+ * - DESTAQUE VISUAL para "Turno do Luís" (19h-08h):
+ *   → Barras 19h-23h e 00h-07h: cor diferenciada (indigo/violet)
+ *   → Barras 08h-18h: cor neutra (slate/gray)
+ *
+ * @example
+ * const traffic = await getLuisTrafficHeatmap();
+ * if (traffic) {
+ *   const turnoLuis = traffic.filter(t => t.hora >= 19 || t.hora < 8);
+ *   const volumeNoturno = turnoLuis.reduce((sum, t) => sum + t.volume, 0);
+ * }
+ */
+export async function getLuisTrafficHeatmap(): Promise<LuisTrafficData[] | null> {
+  try {
+    // Obter configuração e cliente Supabase para o Luís
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+
+    // Chamar a função RPC do Supabase
+    // POST https://<supabase_url>/rest/v1/rpc/get_luis_traffic_heatmap
+    const { data, error } = await sb.rpc('get_luis_traffic_heatmap');
+
+    // Tratamento de erro do Supabase
+    if (error) {
+      console.error('[Luis Traffic Heatmap] Erro ao buscar distribuição de tráfego:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return null;
+    }
+
+    // Validar se data existe e é um array
+    if (!data || !Array.isArray(data)) {
+      console.warn('[Luis Traffic Heatmap] Nenhum dado retornado ou formato inválido');
+      return [];
+    }
+
+    // Log de debug para desenvolvimento
+    const totalVolume = data.reduce((sum: number, item: LuisTrafficData) => sum + item.volume, 0);
+    console.log(`[Luis Traffic Heatmap] ${data.length} horas, ${totalVolume} leads total`);
+
+    return data as LuisTrafficData[];
+  } catch (err) {
+    console.error('[Luis Traffic Heatmap] Erro inesperado:', err);
+    return null;
+  }
+}
+
+// ============================================================================
+// VEHICLE INTEREST - PREFERÊNCIA DE VEÍCULOS (TOP 10)
+// ============================================================================
+
+/**
+ * Busca o ranking de veículos mais procurados pelos leads do Luís.
+ *
+ * Retorna o Top 10 modelos mais solicitados, já limpos e padronizados,
+ * ideal para entender o perfil da demanda noturna.
+ *
+ * @returns Array com Top 10 veículos ou null em caso de erro.
+ *
+ * @ui_hints (Recharts PieChart ou Lista Classificada)
+ * - PieChart/Donut: mostra "fatia" de cada modelo na demanda
+ *   → Cores categóricas distintas
+ *   → Tooltip: "X interessados (Y%)"
+ *
+ * - Alternativa: Lista/Ranking com barras de progresso
+ *   → Ordenado do maior para menor
+ *   → Badge com posição (#1, #2, etc)
+ *
+ * @example
+ * const vehicles = await getLuisVehicleInterest();
+ * if (vehicles) {
+ *   const top3 = vehicles.slice(0, 3);
+ *   console.log(`Top 3: ${top3.map(v => v.veiculo).join(', ')}`);
+ * }
+ */
+export async function getLuisVehicleInterest(): Promise<LuisVehicleStat[] | null> {
+  try {
+    // Obter configuração e cliente Supabase para o Luís
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+
+    // Chamar a função RPC do Supabase
+    // POST https://<supabase_url>/rest/v1/rpc/get_luis_vehicle_interest
+    const { data, error } = await sb.rpc('get_luis_vehicle_interest');
+
+    // Tratamento de erro do Supabase
+    if (error) {
+      console.error('[Luis Vehicle Interest] Erro ao buscar preferência de veículos:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return null;
+    }
+
+    // Validar se data existe e é um array
+    if (!data || !Array.isArray(data)) {
+      console.warn('[Luis Vehicle Interest] Nenhum dado retornado ou formato inválido');
+      return [];
+    }
+
+    // Log de debug para desenvolvimento
+    const totalInteresse = data.reduce((sum: number, item: LuisVehicleStat) => sum + item.total, 0);
+    console.log(`[Luis Vehicle Interest] ${data.length} veículos, ${totalInteresse} interessados total`);
+
+    return data as LuisVehicleStat[];
+  } catch (err) {
+    console.error('[Luis Vehicle Interest] Erro inesperado:', err);
+    return null;
+  }
+}
+
+// ============================================================================
+// GOVERNANCE - GOVERNANÇA E SAÚDE TÉCNICA
+// ============================================================================
+
+/**
+ * Busca os dados de governança e saúde técnica do agente Luís.
+ *
+ * Monitora se a infraestrutura (WhatsApp) está operacional e se o agente
+ * está deixando passar leads (falha crítica de negócio).
+ *
+ * @returns Objeto com status de governança ou null em caso de erro.
+ *
+ * @ui_hints (Regras de Alerta)
+ * - `status_whatsapp !== 'connected'` = ALERTA VERMELHO (Sistema Offline)
+ * - `leads_sem_atendimento > 0` = ALERTA VERMELHO (Perda de Vendas)
+ * - `fila_envio > 20` = ALERTA AMARELO (Lentidão)
+ * - `fila_envio > 50` = ALERTA VERMELHO (Sistema sobrecarregado)
+ *
+ * @example
+ * const governance = await getLuisGovernance();
+ * if (governance) {
+ *   const isHealthy = governance.status_whatsapp === 'connected'
+ *     && governance.leads_sem_atendimento === 0
+ *     && governance.fila_envio < 20;
+ *   console.log(`Sistema ${isHealthy ? 'OK' : 'COM PROBLEMAS'}`);
+ * }
+ */
+export async function getLuisGovernance(): Promise<LuisGovernanceData | null> {
+  try {
+    // Obter configuração e cliente Supabase para o Luís
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+
+    // Chamar a função RPC do Supabase
+    // POST https://<supabase_url>/rest/v1/rpc/get_luis_governance
+    const { data, error } = await sb.rpc('get_luis_governance');
+
+    // Tratamento de erro do Supabase
+    if (error) {
+      console.error('[Luis Governance] Erro ao buscar dados de governança:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return null;
+    }
+
+    // Validar se data existe
+    if (!data) {
+      console.warn('[Luis Governance] Nenhum dado retornado');
+      return null;
+    }
+
+    // Log de debug com status de saúde
+    const isHealthy = data.status_whatsapp === 'connected'
+      && data.leads_sem_atendimento === 0
+      && data.fila_envio < 20;
+
+    console.log(`[Luis Governance] Status: ${isHealthy ? '✅ OK' : '⚠️ ATENÇÃO'}`, {
+      whatsapp: data.status_whatsapp,
+      fila: data.fila_envio,
+      leads_perdidos: data.leads_sem_atendimento,
+    });
+
+    // Alertas críticos no console para debugging
+    if (data.status_whatsapp !== 'connected') {
+      console.error('[Luis Governance] 🚨 CRÍTICO: WhatsApp OFFLINE!');
+    }
+    if (data.leads_sem_atendimento > 0) {
+      console.error(`[Luis Governance] 🚨 CRÍTICO: ${data.leads_sem_atendimento} leads sem atendimento!`);
+    }
+    if (data.fila_envio > 50) {
+      console.error(`[Luis Governance] 🚨 CRÍTICO: Fila sobrecarregada (${data.fila_envio} mensagens)`);
+    } else if (data.fila_envio > 20) {
+      console.warn(`[Luis Governance] ⚠️ AVISO: Fila alta (${data.fila_envio} mensagens)`);
+    }
+
+    return data as LuisGovernanceData;
+  } catch (err) {
+    console.error('[Luis Governance] Erro inesperado:', err);
+    return null;
+  }
+}

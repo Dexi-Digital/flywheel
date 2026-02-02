@@ -35,6 +35,7 @@ function getAgentHref(agentId: string): string {
   if (agentId === 'agent-alice') return '/dashboard/alice';
   if (agentId === 'agent-angela') return '/dashboard/angela';
   if (agentId === 'agent-fernanda') return '/dashboard/fernanda';
+  if (agentId === 'agent-luis') return '/dashboard/luis';
 
   return `/dashboard/agentes/${agentId}`;
 }
