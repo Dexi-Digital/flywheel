@@ -45,6 +45,55 @@ import {
   getAngelaGovernance,
 } from '@/services/angela.service';
 
+// Mapa de códigos de emoji para emojis reais
+const EMOJI_MAP: Record<string, string> = {
+  ':warning:': '⚠️',
+  ':alarm_clock:': '⏰',
+  ':bust_in_silhouette:': '👤',
+  ':iphone:': '📱',
+  ':round_pushpin:': '📍',
+  ':oncoming_automobile:': '🚗',
+  ':car:': '🚗',
+  ':phone:': '📞',
+  ':email:': '📧',
+  ':calendar:': '📅',
+  ':clock:': '🕐',
+  ':check:': '✅',
+  ':x:': '❌',
+  ':star:': '⭐',
+  ':fire:': '🔥',
+  ':heart:': '❤️',
+  ':thumbsup:': '👍',
+  ':thumbsdown:': '👎',
+  ':money:': '💰',
+  ':dollar:': '💵',
+  ':speech_balloon:': '💬',
+  ':exclamation:': '❗',
+  ':question:': '❓',
+  ':bell:': '🔔',
+  ':rotating_light:': '🚨',
+  ':white_check_mark:': '✅',
+  ':heavy_check_mark:': '✔️',
+  ':red_circle:': '🔴',
+  ':green_circle:': '🟢',
+  ':yellow_circle:': '🟡',
+  ':blue_circle:': '🔵',
+};
+
+/**
+ * Converte códigos de emoji no formato :nome: para emojis reais
+ */
+function parseEmojis(text: string): string {
+  if (!text) return text;
+  let result = text;
+  for (const [code, emoji] of Object.entries(EMOJI_MAP)) {
+    result = result.replaceAll(code, emoji);
+  }
+  // Também trata &amp; -> &
+  result = result.replaceAll('&amp;', '&');
+  return result;
+}
+
 // Tipos da API Angela
 import type {
   AngelaKpiPulse,
@@ -595,7 +644,7 @@ export default function AngelaPage() {
                   >
                     <AlertOctagon className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-gray-800 dark:text-gray-200 truncate">{alerta.alerta}</p>
+                      <p className="text-gray-800 dark:text-gray-200 whitespace-pre-line text-xs">{parseEmojis(alerta.alerta)}</p>
                       <p className="text-xs text-gray-500">
                         {(() => {
                           try {

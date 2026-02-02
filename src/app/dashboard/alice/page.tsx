@@ -303,7 +303,15 @@ export default function AlicePage() {
                 <Legend />
                 <ReferenceLine x={format(new Date(), 'dd/MM', { locale: ptBR })} stroke="#94a3b8" strokeDasharray="3 3" />
                 <Bar dataKey="disparos" name="Disparos (realizado)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="previsao" name="Previsão (follow-ups)" fill="#a78bfa" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                <Bar
+                  dataKey="previsao"
+                  name="Previsão (follow-ups)"
+                  fill="#f59e0b"
+                  stroke="#d97706"
+                  strokeWidth={2}
+                  strokeDasharray="4 2"
+                  radius={[4, 4, 0, 0]}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           ) : (
