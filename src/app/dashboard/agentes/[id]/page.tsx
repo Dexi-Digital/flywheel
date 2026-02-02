@@ -32,6 +32,10 @@ export default function AgentPage({ params }: PageProps) {
   useEffect(() => {
     if (id === 'agent-vitor') router.replace('/dashboard/vitor');
     if (id === 'agent-alice') router.replace('/dashboard/alice');
+    if (id === 'agent-angela') router.replace('/dashboard/angela');
+    if (id === 'agent-fernanda') router.replace('/dashboard/fernanda');
+    if (id === 'agent-luis') router.replace('/dashboard/luis');
+    if (id === 'agent-iza') router.replace('/dashboard/iza');
   }, [id, router]);
 
   const loadAgentData = useCallback(async () => {

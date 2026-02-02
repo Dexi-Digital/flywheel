@@ -33,6 +33,17 @@ export function Sidebar() {
   const pathname = usePathname();
   const [agents, setAgents] = useState<Agent[]>([]);
 
+  function getAgentHref(agentId: string): string {
+    if (agentId === 'agent-vitor') return '/dashboard/vitor';
+    if (agentId === 'agent-alice') return '/dashboard/alice';
+    if (agentId === 'agent-angela') return '/dashboard/angela';
+    if (agentId === 'agent-fernanda') return '/dashboard/fernanda';
+    if (agentId === 'agent-luis') return '/dashboard/luis';
+    if (agentId === 'agent-iza') return '/dashboard/iza';
+
+    return `/dashboard/agentes/${agentId}`;
+  }
+
   useEffect(() => {
     async function loadAgents() {
       try {
@@ -129,13 +140,10 @@ export function Sidebar() {
           </h3>
           <div className="space-y-1">
             {agents.map((agent) => {
-              const isVitor = agent.id === 'agent-vitor';
-              const isAlice = agent.id === 'agent-alice';
-              const href = isVitor ? '/dashboard/vitor' : isAlice ? '/dashboard/alice' : `/dashboard/agentes/${agent.id}`;
+              const href = getAgentHref(agent.id);
               const isActive =
                 pathname === `/dashboard/agentes/${agent.id}` ||
-                (isVitor && pathname === '/dashboard/vitor') ||
-                (isAlice && pathname === '/dashboard/alice');
+                pathname === href;
 
               return (
                 <Link
