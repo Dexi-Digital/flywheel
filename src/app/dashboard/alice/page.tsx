@@ -322,7 +322,13 @@ export default function AlicePage() {
             Lista Principal — Prioridade: Engajados e Recência
           </CardTitle>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Ordenação: quem respondeu no topo → última resposta (mais recente) → lead mais novo. Clique para abrir contexto.
+            Ordenação: quem respondeu no topo
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            última resposta (mais recente)
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            lead mais novo.
           </p>
         </CardHeader>
         <CardContent>
