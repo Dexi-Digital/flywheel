@@ -1,6 +1,9 @@
 /**
  * Serviço para os endpoints do Dashboard Alice (BDR).
- * Base: /api/alice/* (quando existirem). Fallback: dados mock para desenvolvimento da UI.
+ *
+ * Estratégia de dados:
+ * - Busca dados reais via RPC do Supabase (alice.service.ts)
+ * - Se falhar, propaga o erro para a UI exibir ao usuário
  */
 
 import type {
@@ -11,115 +14,152 @@ import type {
   AliceGovernanceAlertsResponse,
 } from '@/types/alice-api.types';
 
-const BASE = typeof window !== 'undefined' ? '' : process.env.NEXT_PUBLIC_APP_URL || '';
-const API_PREFIX = `${BASE}/api/alice`;
+// Importar funções RPC reais do alice.service.ts
+import {
+  getAliceFunnelMetrics,
+  getAliceActivityTimeline,
+  getAliceLeadList,
+  getAliceVehicleHeatmap,
+  getAliceGovernanceAlerts,
+} from './alice.service';
 
-async function get<T>(path: string, mock: T): Promise<T> {
-  try {
-    const res = await fetch(`${API_PREFIX}${path}`, { cache: 'no-store' });
-    if (res.ok) return (await res.json()) as T;
-  } catch (_e) {
-    // Rede ou API indisponível: usar mock
+// ============================================================================
+// FUNÇÕES DE FETCH COM DADOS REAIS (RPC)
+// ============================================================================
+
+/**
+ * Busca KPIs do Funil de Prospecção
+ * Fonte: RPC get_alice_kpi_funnel
+ * @throws Error se a chamada RPC falhar
+ */
+export async function fetchAliceKpiFunnel(): Promise<AliceKpiFunnelResponse> {
+  const data = await getAliceFunnelMetrics();
+
+  if (!data) {
+    throw new Error('Falha ao carregar KPIs do funil de prospecção');
   }
-  return mock;
-}
 
-/** Dados mock para desenvolvimento da UI (sem backend) */
-function getMockKpiFunnel(): AliceKpiFunnelResponse {
+  // Mapear do contrato RPC para o contrato da UI
   return {
-    total_base: 1250,
-    validos: 980,
-    contatados: 420,
-    engajados: 89,
+    total_base: data.base_total,
+    validos: data.validos,
+    contatados: data.contatados,
+    engajados: data.engajados,
   };
 }
 
-function getMockTimeline(): AliceTimelineActivityResponse {
-  const hoje = new Date();
-  const passado = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(hoje);
-    d.setDate(d.getDate() - (13 - i));
-    return {
-      date: d.toISOString().slice(0, 10),
-      count: Math.floor(Math.random() * 40) + 5,
-    };
-  });
-  const futuro = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(hoje);
-    d.setDate(d.getDate() + i + 1);
-    return {
-      date: d.toISOString().slice(0, 10),
-      count: Math.floor(Math.random() * 25) + 3,
-    };
-  });
+/**
+ * Busca Timeline de Atividade (disparos passados + previsão futura)
+ * Fonte: RPC get_alice_timeline_activity
+ * @throws Error se a chamada RPC falhar
+ */
+export async function fetchAliceTimelineActivity(): Promise<AliceTimelineActivityResponse> {
+  const data = await getAliceActivityTimeline();
+
+  if (!data) {
+    throw new Error('Falha ao carregar timeline de atividade');
+  }
+
+  // Separar passado e futuro baseado na data de hoje
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const passado = data
+    .filter(p => p.data <= hoje)
+    .map(p => ({ date: p.data, count: p.realizado }));
+
+  const futuro = data
+    .filter(p => p.data > hoje)
+    .map(p => ({ date: p.data, count: p.previsto }));
+
   return { passado, futuro };
 }
 
-function getMockLeadList(): AliceLeadListResponse {
-  const nomes = ['Ana Silva', 'Bruno Costa', 'Carla Mendes', 'Diego Lima', 'Elena Souza', 'Fábio Rocha', 'Giovana Alves', 'Henrique Dias', 'Ivana Oliveira', 'João Pedro'];
-  const veiculos = ['Argo', 'Toro', 'Cronos', 'Compass', 'Renegade', 'Strada'];
-  return nomes.map((nome, i) => ({
-    nome,
-    whatsapp: `(11) 9${8000 + i}${1000 + i}-${1000 + i}`,
-    veiculo_interesse: veiculos[i % veiculos.length],
-    ultima_resposta: i < 4 ? new Date(Date.now() - i * 86400000 * 2).toISOString() : null,
-    sessionId: `sess-${i + 1}`,
-    data_proximo_contato: i % 3 === 0 ? new Date(Date.now() + 86400000 * (i + 1)).toISOString() : null,
-    precisa_intervencao: i === 1 || i === 5,
+/**
+ * Busca Lista de Leads Priorizada
+ * Fonte: RPC get_alice_lead_list
+ * @throws Error se a chamada RPC falhar
+ */
+export async function fetchAliceLeadList(): Promise<AliceLeadListResponse> {
+  const data = await getAliceLeadList();
+
+  if (!data) {
+    throw new Error('Falha ao carregar lista de leads');
+  }
+
+  // Mapear do contrato RPC para o contrato da UI
+  return data.map(lead => ({
+    nome: lead.nome,
+    whatsapp: lead.whatsapp,
+    veiculo_interesse: lead.veiculo_interesse ?? '',
+    ultima_resposta: lead.ultima_resposta,
+    sessionId: lead.session_id,
+    data_proximo_contato: lead.data_proximo_contato,
+    precisa_intervencao: lead.precisa_intervencao,
   }));
 }
 
-function getMockVehicleHeatmap(): AliceVehicleHeatmapResponse {
-  return [
-    { veiculo_interesse: 'Argo', total_leads: 320, total_respostas: 64 },
-    { veiculo_interesse: 'Toro', total_leads: 280, total_respostas: 14 },
-    { veiculo_interesse: 'Cronos', total_leads: 180, total_respostas: 36 },
-    { veiculo_interesse: 'Compass', total_leads: 150, total_respostas: 23 },
-    { veiculo_interesse: 'Renegade', total_leads: 95, total_respostas: 19 },
-    { veiculo_interesse: 'Strada', total_leads: 85, total_respostas: 12 },
-  ];
+/**
+ * Busca Heatmap de Veículos (taxa de conversão por modelo)
+ * Fonte: RPC get_alice_vehicle_heatmap
+ * @throws Error se a chamada RPC falhar
+ */
+export async function fetchAliceVehicleHeatmap(): Promise<AliceVehicleHeatmapResponse> {
+  const data = await getAliceVehicleHeatmap();
+
+  if (!data) {
+    throw new Error('Falha ao carregar heatmap de veículos');
+  }
+
+  // Mapear do contrato RPC para o contrato da UI
+  // Ordenar por total_leads DESC
+  return data
+    .map(v => ({
+      veiculo_interesse: v.veiculo,
+      total_leads: v.total_leads,
+      total_respostas: v.total_respostas,
+    }))
+    .sort((a, b) => b.total_leads - a.total_leads);
 }
 
-function getMockGovernance(): AliceGovernanceAlertsResponse {
+/**
+ * Busca Dados de Governança e Alertas
+ * Fonte: RPC get_alice_governance_alerts
+ * @throws Error se a chamada RPC falhar
+ */
+export async function fetchAliceGovernanceAlerts(): Promise<AliceGovernanceAlertsResponse> {
+  const data = await getAliceGovernanceAlerts();
+
+  if (!data) {
+    throw new Error('Falha ao carregar dados de governança');
+  }
+
+  // Mapear do contrato RPC para o contrato da UI
   return {
-    buffer_represado: 12,
-    total_intervencoes: 8,
-    total_contatados: 420,
-    taxa_intervencao: 1.9,
-    ultimos_erros: [
-      { created_at: new Date(Date.now() - 3600000).toISOString(), curadoria: 'Lead perguntou sobre garantia estendida; IA não tinha contexto.' },
-      { created_at: new Date(Date.now() - 7200000).toISOString(), curadoria: 'Cliente pediu para falar com humano; fluxo não transferiu.' },
-      { created_at: new Date(Date.now() - 10800000).toISOString(), curadoria: 'Resposta genérica sobre financiamento; lead queria simulação.' },
-    ],
+    buffer_represado: data.buffer_queue,
+    total_intervencoes: data.recent_errors.length,
+    total_contatados: 0, // Será calculado no front se necessário
+    taxa_intervencao: data.intervention_rate,
+    ultimos_erros: data.recent_errors.map(err => ({
+      id: String(err.id),
+      created_at: err.created_at,
+      curadoria: err.message_ai || err.message_user || 'Erro não especificado',
+      sessionId: err.sessionId ?? undefined,
+    })),
   };
 }
 
-/** GET /api/alice/kpi-funnel */
-export async function fetchAliceKpiFunnel(): Promise<AliceKpiFunnelResponse> {
-  return get('/kpi-funnel', getMockKpiFunnel());
-}
+// ============================================================================
+// FUNÇÃO AGREGADORA (carrega todos os dados em paralelo)
+// ============================================================================
 
-/** GET /api/alice/timeline-activity */
-export async function fetchAliceTimelineActivity(): Promise<AliceTimelineActivityResponse> {
-  return get('/timeline-activity', getMockTimeline());
-}
-
-/** GET /api/alice/lead-list */
-export async function fetchAliceLeadList(): Promise<AliceLeadListResponse> {
-  return get('/lead-list', getMockLeadList());
-}
-
-/** GET /api/alice/vehicle-heatmap */
-export async function fetchAliceVehicleHeatmap(): Promise<AliceVehicleHeatmapResponse> {
-  return get('/vehicle-heatmap', getMockVehicleHeatmap());
-}
-
-/** GET /api/alice/governance-alerts */
-export async function fetchAliceGovernanceAlerts(): Promise<AliceGovernanceAlertsResponse> {
-  return get('/governance-alerts', getMockGovernance());
-}
-
-/** Carrega todos os dados do dashboard Alice de uma vez (para uma única tela) */
+/**
+ * Carrega todos os dados do dashboard Alice de uma vez
+ *
+ * Executa todas as chamadas em paralelo para melhor performance.
+ * Se qualquer chamada falhar, propaga o erro para a UI.
+ *
+ * @throws Error se qualquer chamada RPC falhar
+ */
 export async function fetchAliceDashboard() {
   const [kpiFunnel, timelineActivity, leadList, vehicleHeatmap, governanceAlerts] = await Promise.all([
     fetchAliceKpiFunnel(),
@@ -128,6 +168,7 @@ export async function fetchAliceDashboard() {
     fetchAliceVehicleHeatmap(),
     fetchAliceGovernanceAlerts(),
   ]);
+
   return {
     kpiFunnel,
     timelineActivity,

@@ -268,8 +268,8 @@ export default function AlicePage() {
                     borderRadius: '8px',
                   }}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.date && format(new Date(payload[0].payload.date), "dd/MM/yyyy", { locale: ptBR })}
-                  formatter={(value: number, name: string) => [
-                    formatNumber(value),
+                  formatter={(value, name) => [
+                    formatNumber(Number(value) || 0),
                     name === 'disparos' ? 'Disparos (realizado)' : 'Previsão (follow-ups)',
                   ]}
                 />
@@ -312,36 +312,65 @@ export default function AlicePage() {
                 </tr>
               </thead>
               <tbody>
-                {leadList.map((lead) => (
-                  <tr
-                    key={lead.sessionId}
-                    className="border-b hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
-                    onClick={() => handleLeadClick(lead.sessionId, lead.nome)}
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{lead.nome}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{lead.whatsapp}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{lead.veiculo_interesse || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                      {lead.ultima_resposta
-                        ? formatDistanceToNow(new Date(lead.ultima_resposta), { addSuffix: true, locale: ptBR })
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                      {lead.data_proximo_contato
-                        ? format(new Date(lead.data_proximo_contato), "dd/MM/yyyy HH:mm", { locale: ptBR })
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {lead.precisa_intervencao ? (
-                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                          Intervenção
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {leadList.map((lead) => {
+                  // Lógica visual: destacar leads engajados (que responderam)
+                  const isEngajado = lead.ultima_resposta !== null;
+                  const precisaIntervencao = lead.precisa_intervencao;
+
+                  // Classes dinâmicas baseadas no status do lead
+                  const rowClasses = [
+                    'border-b cursor-pointer transition-colors',
+                    // Destaque para leads engajados (responderam)
+                    isEngajado
+                      ? 'bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/70 dark:hover:bg-blue-900/20'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                    // Borda de alerta para intervenção
+                    precisaIntervencao ? 'border-l-4 border-l-amber-500' : '',
+                  ].filter(Boolean).join(' ');
+
+                  return (
+                    <tr
+                      key={lead.sessionId}
+                      className={rowClasses}
+                      onClick={() => handleLeadClick(lead.sessionId, lead.nome)}
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          {/* Ícone de engajamento para leads que responderam */}
+                          {isEngajado && (
+                            <span title="Lead respondeu" className="text-blue-500">💬</span>
+                          )}
+                          {lead.nome}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{lead.whatsapp}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{lead.veiculo_interesse || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {lead.ultima_resposta
+                          ? formatDistanceToNow(new Date(lead.ultima_resposta), { addSuffix: true, locale: ptBR })
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {lead.data_proximo_contato
+                          ? format(new Date(lead.data_proximo_contato), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {precisaIntervencao ? (
+                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                            ⚠️ Intervenção
+                          </Badge>
+                        ) : isEngajado ? (
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">
+                            Engajado
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -422,32 +451,84 @@ export default function AlicePage() {
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Alertas visuais baseados nas regras de negócio */}
+          {(() => {
+            const bufferQueue = governanceAlerts?.buffer_represado ?? 0;
+            const isTaxaCritica = taxaIntervencao > 10;
+            const hasGargalo = bufferQueue > 0;
+
+            if (hasGargalo || isTaxaCritica) {
+              return (
+                <div className="flex flex-wrap gap-3">
+                  {hasGargalo && (
+                    <div className="flex items-center gap-2 rounded-lg bg-amber-100 dark:bg-amber-900/30 px-4 py-2 text-amber-800 dark:text-amber-200">
+                      <Inbox className="h-5 w-5" />
+                      <span className="font-medium">⚠️ Gargalo de Envio: {bufferQueue} mensagens na fila</span>
+                    </div>
+                  )}
+                  {isTaxaCritica && (
+                    <div className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-4 py-2 text-red-800 dark:text-red-200">
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-medium">🚨 Status Crítico: Taxa de intervenção {taxaIntervencao.toFixed(1)}%</span>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return null;
+          })()}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+            {/* Card Fila - com destaque se > 0 */}
+            <div className={`rounded-lg border p-4 ${
+              (governanceAlerts?.buffer_represado ?? 0) > 0
+                ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10'
+                : 'border-gray-200 dark:border-gray-700'
+            }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
-                <Inbox className="h-4 w-4" />
+                <Inbox className={`h-4 w-4 ${(governanceAlerts?.buffer_represado ?? 0) > 0 ? 'text-amber-600' : ''}`} />
                 Fila represada (buffer_message_bdr)
               </div>
-              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              <p className={`mt-2 text-2xl font-semibold ${
+                (governanceAlerts?.buffer_represado ?? 0) > 0
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-gray-900 dark:text-white'
+              }`}>
                 {governanceAlerts?.buffer_represado ?? 0}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">mensagens na fila</p>
             </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+
+            {/* Card Taxa de Intervenção - com destaque se > 10% */}
+            <div className={`rounded-lg border p-4 ${
+              taxaIntervencao > 10
+                ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
+                : 'border-gray-200 dark:border-gray-700'
+            }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
-                <MessageSquare className="h-4 w-4" />
+                <MessageSquare className={`h-4 w-4 ${taxaIntervencao > 10 ? 'text-red-600' : ''}`} />
                 Taxa de intervenção
               </div>
-              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              <p className={`mt-2 text-2xl font-semibold ${
+                taxaIntervencao > 10
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-gray-900 dark:text-white'
+              }`}>
                 {taxaIntervencao.toFixed(1)}%
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {governanceAlerts?.total_intervencoes ?? 0} sessões / {governanceAlerts?.total_contatados ?? 0} contatados
               </p>
             </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+
+            {/* Card Erros */}
+            <div className={`rounded-lg border p-4 ${
+              (governanceAlerts?.ultimos_erros?.length ?? 0) > 0
+                ? 'border-amber-200 dark:border-amber-800'
+                : 'border-gray-200 dark:border-gray-700'
+            }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
-                <AlertTriangle className="h-4 w-4" />
+                <AlertTriangle className={`h-4 w-4 ${(governanceAlerts?.ultimos_erros?.length ?? 0) > 0 ? 'text-amber-600' : ''}`} />
                 Últimos erros (curadoria)
               </div>
               <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
