@@ -5,6 +5,117 @@ import { getTenantConfig } from '@/lib/supabase/agents';
 import { Lead, Event } from '@/types/database.types';
 import { buildAgentCommon } from './common';
 
+// ============================================================================
+// TIPOS PARA O FUNIL DE PROSPECÇÃO DA ALICE
+// ============================================================================
+
+/**
+ * Interface para os KPIs do Funil de Prospecção da Alice (BDR Outbound)
+ *
+ * O funil representa a jornada do lead desde a importação até o engajamento:
+ * Base Total → Válidos → Contatados → Engajados
+ */
+export interface AliceFunnelKPI {
+  /** Total de leads importados na base de prospecção */
+  base_total: number;
+
+  /** Leads com WhatsApp válido (número verificado e ativo) */
+  validos: number;
+
+  /** Leads que receberam pelo menos um disparo de mensagem */
+  contatados: number;
+
+  /** Leads que responderam às mensagens (Novo Fundo de Funil) */
+  engajados: number;
+}
+
+/**
+ * Busca os KPIs do Funil de Prospecção da Alice via RPC
+ *
+ * @description Chama a função Postgres `get_alice_kpi_funnel` que retorna
+ * as métricas agregadas do funil de prospecção outbound.
+ *
+ * @returns Promise<AliceFunnelKPI | null> - Objeto com as métricas ou null em caso de erro
+ *
+ * @example
+ * const funnel = await getAliceFunnelMetrics();
+ * if (funnel) {
+ *   const taxaValidacao = (funnel.validos / funnel.base_total) * 100;
+ *   const taxaContato = (funnel.contatados / funnel.validos) * 100;
+ *   const taxaEngajamento = (funnel.engajados / funnel.contatados) * 100;
+ * }
+ */
+export async function getAliceFunnelMetrics(): Promise<AliceFunnelKPI | null> {
+  try {
+    // Obter configuração e cliente Supabase para a Alice
+    const cfg = getTenantConfig('agent-alice');
+    const sb = getBrowserTenantClient('agent-alice', cfg);
+
+    // Chamar a função RPC do Supabase
+    // POST https://<supabase_url>/rest/v1/rpc/get_alice_kpi_funnel
+    const { data, error } = await sb.rpc('get_alice_kpi_funnel');
+
+    // Tratamento de erro do Supabase
+    if (error) {
+      console.error('[Alice Funnel] Erro ao buscar KPIs do funil:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return null;
+    }
+
+    // Normalizar resposta: pode ser objeto único ou array
+    // Se for array, pega o primeiro elemento
+    let rawData: Record<string, unknown>;
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        console.warn('[Alice Funnel] RPC retornou array vazio');
+        return null;
+      }
+      rawData = data[0];
+    } else if (data && typeof data === 'object') {
+      rawData = data as Record<string, unknown>;
+    } else {
+      console.warn('[Alice Funnel] Formato de resposta inesperado:', typeof data);
+      return null;
+    }
+
+    // Validar e extrair campos com valores padrão seguros
+    const funnel: AliceFunnelKPI = {
+      base_total: Number(rawData.base_total) || 0,
+      validos: Number(rawData.validos) || 0,
+      contatados: Number(rawData.contatados) || 0,
+      engajados: Number(rawData.engajados) || 0,
+    };
+
+    // Log para debug
+    console.log('[Alice Funnel] KPIs carregados:', {
+      base_total: funnel.base_total,
+      validos: funnel.validos,
+      contatados: funnel.contatados,
+      engajados: funnel.engajados,
+      taxa_validacao: funnel.base_total > 0
+        ? `${((funnel.validos / funnel.base_total) * 100).toFixed(1)}%`
+        : 'N/A',
+      taxa_engajamento: funnel.contatados > 0
+        ? `${((funnel.engajados / funnel.contatados) * 100).toFixed(1)}%`
+        : 'N/A',
+    });
+
+    return funnel;
+  } catch (err) {
+    // Tratamento de exceções não esperadas
+    console.error('[Alice Funnel] Exceção ao buscar KPIs:', err);
+    return null;
+  }
+}
+
+// ============================================================================
+// FUNÇÕES AUXILIARES
+// ============================================================================
+
 function toStr(v: unknown): string | undefined {
   if (v === null || v === undefined) return undefined;
   return String(v);
