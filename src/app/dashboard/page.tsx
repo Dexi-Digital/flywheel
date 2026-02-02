@@ -31,7 +31,9 @@ const AGENT_IDS = [
 ] as const;
 
 function getAgentHref(agentId: string): string {
-  return agentId === 'agent-vitor' ? '/dashboard/vitor' : `/dashboard/agentes/${agentId}`;
+  if (agentId === 'agent-vitor') return '/dashboard/vitor';
+  if (agentId === 'agent-alice') return '/dashboard/alice';
+  return `/dashboard/agentes/${agentId}`;
 }
 
 function formatTempoMedio(horas: number, minutos?: number): string {

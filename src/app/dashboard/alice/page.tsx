@@ -1,191 +1,486 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { BrainDrawer } from '@/components/shared';
 import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { buildService } from '@/services/factory';
-import type { Agent } from '@/types/database.types';
+import { fetchAliceDashboard } from '@/services/alice-api.service';
+import { formatNumber } from '@/lib/utils';
+import { format, formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import {
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  ComposedChart,
+  ReferenceLine,
+} from 'recharts';
+import {
+  MessageSquare,
+  Users,
+  Target,
+  AlertTriangle,
+  RefreshCw,
+  Car,
+  Calendar,
+  ShieldAlert,
+  Inbox,
+} from 'lucide-react';
+import type { FunnelData } from '@/types/database.types';
+import type {
+  AliceKpiFunnelResponse,
+  AliceTimelineActivityResponse,
+  AliceLeadListItem,
+  AliceVehicleHeatmapResponse,
+  AliceGovernanceAlertsResponse,
+} from '@/types/alice-api.types';
 
 export default function AlicePage() {
-  const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedLead, setSelectedLead] = useState<string | null>(null);
-  const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [kpiFunnel, setKpiFunnel] = useState<AliceKpiFunnelResponse | null>(null);
+  const [timelineActivity, setTimelineActivity] = useState<AliceTimelineActivityResponse | null>(null);
+  const [leadList, setLeadList] = useState<AliceLeadListItem[]>([]);
+  const [vehicleHeatmap, setVehicleHeatmap] = useState<AliceVehicleHeatmapResponse>([]);
+  const [governanceAlerts, setGovernanceAlerts] = useState<AliceGovernanceAlertsResponse | null>(null);
+
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedLeadName, setSelectedLeadName] = useState('');
+  const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
 
   const { data: brainData, fetchBrainData } = useBrainDrawerData({
     agentId: 'alice',
-    leadId: selectedLead || '',
+    leadId: selectedLeadId || '',
   });
 
-  const handleLeadClick = (leadId: string, leadName?: string) => {
-    setSelectedLead(leadId);
-    setSelectedLeadName(leadName || '');
+  const loadDashboard = useCallback(async () => {
+    try {
+      setError(null);
+      const data = await fetchAliceDashboard();
+      setKpiFunnel(data.kpiFunnel);
+      setTimelineActivity(data.timelineActivity);
+      setLeadList(data.leadList);
+      setVehicleHeatmap(data.vehicleHeatmap);
+      setGovernanceAlerts(data.governanceAlerts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar dashboard');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadDashboard();
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    if (isBrainDrawerOpen && selectedLeadId) fetchBrainData();
+  }, [isBrainDrawerOpen, selectedLeadId, fetchBrainData]);
+
+  const handleLeadClick = (sessionId: string, nome: string) => {
+    setSelectedLeadId(sessionId);
+    setSelectedLeadName(nome);
     setIsBrainDrawerOpen(true);
   };
 
-  useEffect(() => {
-    if (isBrainDrawerOpen && selectedLead) {
-      fetchBrainData();
-    }
-  }, [isBrainDrawerOpen, selectedLead, fetchBrainData]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const service = buildService('alice');
-        const data = await service.getAgent('alice');
-        setAgent(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
   if (loading) {
     return (
-      <div className="p-6 text-center">
-        <div className="text-gray-500">Carregando dados de Alice...</div>
+      <div className="flex items-center justify-center p-12">
+        <p className="text-gray-500 dark:text-gray-400">Carregando dashboard Alice...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6">
-        <Card className="p-6 bg-red-50 border-red-200">
-          <div className="text-red-900">Erro: {error}</div>
+      <div className="flex min-h-[60vh] items-center justify-center p-8">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
+                <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Erro ao carregar dados</h3>
+              <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">{error}</p>
+              <button
+                onClick={() => { setLoading(true); loadDashboard(); }}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Tentar novamente
+              </button>
+            </div>
+          </CardContent>
         </Card>
       </div>
     );
   }
 
-  if (!agent) {
-    return (
-      <div className="p-6 text-center">
-        <div className="text-gray-500">Agente não encontrado</div>
-      </div>
-    );
-  }
+  // Funil: Total Base → Válidos → Contatados → Engajados (Responderam)
+  const funnelData: FunnelData[] = kpiFunnel
+    ? [
+        { stage: 'Total Base', value: kpiFunnel.total_base, fill: '#94a3b8' },
+        { stage: 'Válidos (WhatsApp)', value: kpiFunnel.validos, fill: '#64748b' },
+        { stage: 'Contatados', value: kpiFunnel.contatados, fill: '#3b82f6' },
+        { stage: 'Engajados (Responderam)', value: kpiFunnel.engajados, fill: '#10b981' },
+      ]
+    : [];
+  const maxFunnelValue = funnelData.length ? Math.max(...funnelData.map((d) => d.value), 1) : 1;
 
-  const leads = agent.leads || [];
-  const taxaConversao = leads.length > 0 ? ((agent.metricas_agregadas.conversoes || 0) / leads.length) * 100 : 0;
+  // Timeline: merge passado + futuro por data para o gráfico combinado
+  const timelineMerged: { date: string; label: string; disparos: number; previsao: number }[] = [];
+  const dateSet = new Set<string>();
+  timelineActivity?.passado?.forEach((p) => dateSet.add(p.date));
+  timelineActivity?.futuro?.forEach((f) => dateSet.add(f.date));
+  const sortedDates = Array.from(dateSet).sort();
+  sortedDates.forEach((date) => {
+    const passadoItem = timelineActivity?.passado?.find((p) => p.date === date);
+    const futuroItem = timelineActivity?.futuro?.find((f) => f.date === date);
+    timelineMerged.push({
+      date,
+      label: format(new Date(date), 'dd/MM', { locale: ptBR }),
+      disparos: passadoItem?.count ?? 0,
+      previsao: futuroItem?.count ?? 0,
+    });
+  });
+
+  const taxaIntervencao =
+    governanceAlerts && governanceAlerts.total_contatados > 0
+      ? (governanceAlerts.total_intervencoes / governanceAlerts.total_contatados) * 100
+      : 0;
 
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">📞 Alice — Outbound</h1>
-        <p className="text-gray-600 mt-2">
-          Campanhas telefônicas e contatos ativos com histórico de chamadas e interações
-        </p>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Leads Ativos</div>
-          <div className="text-3xl font-bold text-blue-600">{leads.length}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Taxa de Sucesso</div>
-          <div className="text-3xl font-bold text-green-600">{taxaConversao.toFixed(1)}%</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Conversões</div>
-          <div className="text-3xl font-bold text-purple-600">{agent.metricas_agregadas.conversoes}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-gray-600 mb-1">Receita Total</div>
-          <div className="text-3xl font-bold text-orange-600">
-            R$ {(agent.metricas_agregadas.receita_total || 0).toLocaleString('pt-BR')}
-          </div>
-        </Card>
-      </div>
-
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Leads Grid */}
-        <div className="lg:col-span-2 space-y-6">
-          {leads.length > 0 ? (
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">Contatos para Outbound</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left font-semibold">Contato</th>
-                      <th className="px-4 py-2 text-left font-semibold">Telefone</th>
-                      <th className="px-4 py-2 text-left font-semibold">Email</th>
-                      <th className="px-4 py-2 text-left font-semibold">Status</th>
-                      <th className="px-4 py-2 text-left font-semibold">Data</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.map((lead) => (
-                      <tr
-                        key={lead.id}
-                        className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
-                        onClick={() => handleLeadClick(lead.id, lead.nome)}
-                      >
-                        <td className="px-4 py-3 font-medium">{lead.nome}</td>
-                        <td className="px-4 py-3 text-sm">{lead.telefone || '-'}</td>
-                        <td className="px-4 py-3 text-sm">{lead.email || '-'}</td>
-                        <td className="px-4 py-3">
-                          <Badge className="bg-blue-100 text-blue-800">{lead.status || 'Ativo'}</Badge>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">
-                          {new Date(lead.created_at).toLocaleDateString('pt-BR')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          ) : (
-            <Card className="p-6 text-center text-gray-500">
-              <p>Nenhum contato disponível</p>
-            </Card>
-          )}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">📞 Alice — BDR Outbound</h1>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">
+            Funil de conversão, disparos e follow-ups. Prioridade: quem respondeu e recência.
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Atualizando...' : 'Atualizar'}
+        </button>
+      </div>
 
-        {/* Right: Sidebar */}
-        <div className="space-y-6">
-          {/* Recent Events */}
-          {agent.events && agent.events.length > 0 && (
-            <Card className="p-4">
-              <h3 className="font-semibold text-sm mb-3">📅 Atividades Recentes</h3>
-              <div className="space-y-2">
-                {agent.events.slice(0, 5).map((event, idx) => (
-                  <div key={idx} className="p-2 bg-blue-50 rounded text-xs border border-blue-200">
-                    <div className="text-blue-900 font-medium">
-                      {(event as any).tipo || 'Evento'}
-                    </div>
-                    <div className="text-blue-700 text-xs line-clamp-2">
-                      {(event as any).descricao || (event as any).message}
+      {/* 1. Funil de Conversão (KPI Funnel) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-blue-600" />
+            Funil de Conversão
+          </CardTitle>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Total Base → Válidos (WhatsApp) → Contatados → Engajados (Responderam)
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {funnelData.map((item, index) => {
+              const widthPercentage = (item.value / maxFunnelValue) * 100;
+              const conversionRate =
+                index > 0 && funnelData[index - 1].value > 0
+                  ? ((item.value / funnelData[index - 1].value) * 100).toFixed(1)
+                  : '100';
+              return (
+                <div key={item.stage}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="font-medium text-gray-700 dark:text-gray-300">{item.stage}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-gray-500 dark:text-gray-400">{formatNumber(item.value)}</span>
+                      {index > 0 && (
+                        <span className="text-xs text-gray-400">({conversionRate}%)</span>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            </Card>
+                  <div className="relative h-8 w-full overflow-hidden rounded bg-gray-100 dark:bg-gray-800">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded transition-all duration-500"
+                      style={{ width: `${widthPercentage}%`, backgroundColor: item.fill || '#0f62fe' }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {funnelData.length >= 2 && funnelData[0].value > 0 && (
+            <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-700">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Taxa Base → Engajados</span>
+              <span className="text-lg font-semibold text-green-600 dark:text-green-400">
+                {((funnelData[funnelData.length - 1].value / funnelData[0].value) * 100).toFixed(1)}%
+              </span>
+            </div>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Brain Drawer */}
+      {/* 2. Timeline: Disparos (passado) + Previsão (futuro) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-purple-600" />
+            Atividade — Disparos e Previsão
+          </CardTitle>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Barras sólidas: contatos realizados. Barras tracejadas: follow-ups previstos (shot_fired = false).
+          </p>
+        </CardHeader>
+        <CardContent>
+          {timelineMerged.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={timelineMerged} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  width={36}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                  }}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.date && format(new Date(payload[0].payload.date), "dd/MM/yyyy", { locale: ptBR })}
+                  formatter={(value: number, name: string) => [
+                    formatNumber(value),
+                    name === 'disparos' ? 'Disparos (realizado)' : 'Previsão (follow-ups)',
+                  ]}
+                />
+                <Legend />
+                <ReferenceLine x={format(new Date(), 'dd/MM', { locale: ptBR })} stroke="#94a3b8" strokeDasharray="3 3" />
+                <Bar dataKey="disparos" name="Disparos (realizado)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="previsao" name="Previsão (follow-ups)" fill="#a78bfa" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-[300px] items-center justify-center text-gray-500 dark:text-gray-400">
+              Sem dados de disparos ou previsão
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 3. Lista principal de leads (matadora) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-green-600" />
+            Lista Principal — Prioridade: Engajados e Recência
+          </CardTitle>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Ordenação: quem respondeu no topo → última resposta (mais recente) → lead mais novo. Clique para abrir contexto.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-gray-50 dark:bg-gray-800/50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Nome</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">WhatsApp</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Veículo</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Última resposta</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Próximo contato</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Status IA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leadList.map((lead) => (
+                  <tr
+                    key={lead.sessionId}
+                    className="border-b hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
+                    onClick={() => handleLeadClick(lead.sessionId, lead.nome)}
+                  >
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{lead.nome}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{lead.whatsapp}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{lead.veiculo_interesse || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                      {lead.ultima_resposta
+                        ? formatDistanceToNow(new Date(lead.ultima_resposta), { addSuffix: true, locale: ptBR })
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                      {lead.data_proximo_contato
+                        ? format(new Date(lead.data_proximo_contato), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {lead.precisa_intervencao ? (
+                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                          Intervenção
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {leadList.length === 0 && (
+            <div className="py-12 text-center text-gray-500 dark:text-gray-400">Nenhum lead contatado na base.</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 4. Heatmap por veículo (interesse) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Car className="h-5 w-5 text-orange-600" />
+            Taxa de Resposta por Veículo
+          </CardTitle>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Total de leads vs. quem respondeu (last_message_lead preenchido). Taxa = respostas / total.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-gray-50 dark:bg-gray-800/50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Veículo</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">Total leads</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">Respostas</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">Taxa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vehicleHeatmap.map((row) => {
+                  const taxa = row.total_leads > 0 ? (row.total_respostas / row.total_leads) * 100 : 0;
+                  return (
+                    <tr key={row.veiculo_interesse} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{row.veiculo_interesse}</td>
+                      <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">
+                        {formatNumber(row.total_leads)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">
+                        {formatNumber(row.total_respostas)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span
+                          className={
+                            taxa >= 15
+                              ? 'font-semibold text-green-600 dark:text-green-400'
+                              : taxa >= 5
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-gray-600 dark:text-gray-400'
+                          }
+                        >
+                          {taxa.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {vehicleHeatmap.length === 0 && (
+            <div className="py-8 text-center text-gray-500 dark:text-gray-400">Sem dados de veículos.</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 5. Governança e alertas */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-amber-600" />
+            Governança e Qualidade
+          </CardTitle>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Fila de envio, taxa de intervenção humana e últimos erros (curadoria).
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                <Inbox className="h-4 w-4" />
+                Fila represada (buffer_message_bdr)
+              </div>
+              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+                {governanceAlerts?.buffer_represado ?? 0}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">mensagens na fila</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                <MessageSquare className="h-4 w-4" />
+                Taxa de intervenção
+              </div>
+              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+                {taxaIntervencao.toFixed(1)}%
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {governanceAlerts?.total_intervencoes ?? 0} sessões / {governanceAlerts?.total_contatados ?? 0} contatados
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                <AlertTriangle className="h-4 w-4" />
+                Últimos erros (curadoria)
+              </div>
+              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+                {governanceAlerts?.ultimos_erros?.length ?? 0}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">registros listados abaixo</p>
+            </div>
+          </div>
+          {governanceAlerts?.ultimos_erros && governanceAlerts.ultimos_erros.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Onde a IA errou recentemente</h4>
+              <ul className="space-y-2">
+                {governanceAlerts.ultimos_erros.slice(0, 5).map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+                  >
+                    <div className="font-medium">{item.curadoria}</div>
+                    <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                      {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <BrainDrawer
         isOpen={isBrainDrawerOpen}
         onClose={() => setIsBrainDrawerOpen(false)}
-        leadId={selectedLead || ''}
+        leadId={selectedLeadId || ''}
         leadName={selectedLeadName}
         agentType="alice"
         chatMessages={brainData.chatMessages}

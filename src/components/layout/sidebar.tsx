@@ -130,8 +130,12 @@ export function Sidebar() {
           <div className="space-y-1">
             {agents.map((agent) => {
               const isVitor = agent.id === 'agent-vitor';
-              const href = isVitor ? '/dashboard/vitor' : `/dashboard/agentes/${agent.id}`;
-              const isActive = pathname === `/dashboard/agentes/${agent.id}` || (isVitor && pathname === '/dashboard/vitor');
+              const isAlice = agent.id === 'agent-alice';
+              const href = isVitor ? '/dashboard/vitor' : isAlice ? '/dashboard/alice' : `/dashboard/agentes/${agent.id}`;
+              const isActive =
+                pathname === `/dashboard/agentes/${agent.id}` ||
+                (isVitor && pathname === '/dashboard/vitor') ||
+                (isAlice && pathname === '/dashboard/alice');
 
               return (
                 <Link

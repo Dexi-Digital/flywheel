@@ -28,11 +28,10 @@ export default function AgentPage({ params }: PageProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
 
-  // Vitor tem página dedicada em /dashboard/vitor — redirecionar para ela
+  // Vitor e Alice têm páginas dedicadas — redirecionar
   useEffect(() => {
-    if (id === 'agent-vitor') {
-      router.replace('/dashboard/vitor');
-    }
+    if (id === 'agent-vitor') router.replace('/dashboard/vitor');
+    if (id === 'agent-alice') router.replace('/dashboard/alice');
   }, [id, router]);
 
   const loadAgentData = useCallback(async () => {
@@ -57,15 +56,15 @@ export default function AgentPage({ params }: PageProps) {
   }, [id]);
 
   useEffect(() => {
-    if (id !== 'agent-vitor') {
+    if (id !== 'agent-vitor' && id !== 'agent-alice') {
       loadAgentData();
     }
   }, [id, loadAgentData]);
 
-  if (id === 'agent-vitor') {
+  if (id === 'agent-vitor' || id === 'agent-alice') {
     return (
       <div className="flex items-center justify-center p-8">
-        <p className="text-gray-500">Redirecionando para o Vitor...</p>
+        <p className="text-gray-500">Redirecionando...</p>
       </div>
     );
   }
