@@ -148,9 +148,22 @@ export default function AlicePage() {
   sortedDates.forEach((date) => {
     const passadoItem = timelineActivity?.passado?.find((p) => p.date === date);
     const futuroItem = timelineActivity?.futuro?.find((f) => f.date === date);
+
+    // Validar se a data é válida antes de formatar
+    let label = date;
+    try {
+      const parsedDate = new Date(date);
+      if (!isNaN(parsedDate.getTime())) {
+        label = format(parsedDate, 'dd/MM', { locale: ptBR });
+      }
+    } catch {
+      // Se falhar, usa a string original
+      console.warn('[Alice Timeline] Data inválida:', date);
+    }
+
     timelineMerged.push({
       date,
-      label: format(new Date(date), 'dd/MM', { locale: ptBR }),
+      label,
       disparos: passadoItem?.count ?? 0,
       previsao: futuroItem?.count ?? 0,
     });
@@ -267,7 +280,19 @@ export default function AlicePage() {
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px',
                   }}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.date && format(new Date(payload[0].payload.date), "dd/MM/yyyy", { locale: ptBR })}
+                  labelFormatter={(_, payload) => {
+                    const dateStr = payload?.[0]?.payload?.date;
+                    if (!dateStr) return '';
+                    try {
+                      const parsedDate = new Date(dateStr);
+                      if (!isNaN(parsedDate.getTime())) {
+                        return format(parsedDate, "dd/MM/yyyy", { locale: ptBR });
+                      }
+                      return dateStr;
+                    } catch {
+                      return dateStr;
+                    }
+                  }}
                   formatter={(value, name) => [
                     formatNumber(Number(value) || 0),
                     name === 'disparos' ? 'Disparos (realizado)' : 'Previsão (follow-ups)',
@@ -548,7 +573,17 @@ export default function AlicePage() {
                   >
                     <div className="font-medium">{item.curadoria}</div>
                     <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                      {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      {(() => {
+                        try {
+                          const parsedDate = new Date(item.created_at);
+                          if (!isNaN(parsedDate.getTime())) {
+                            return format(parsedDate, "dd/MM/yyyy HH:mm", { locale: ptBR });
+                          }
+                          return item.created_at;
+                        } catch {
+                          return item.created_at;
+                        }
+                      })()}
                     </div>
                   </li>
                 ))}
