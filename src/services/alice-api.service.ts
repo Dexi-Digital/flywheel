@@ -111,14 +111,19 @@ export async function fetchAliceVehicleHeatmap(): Promise<AliceVehicleHeatmapRes
   }
 
   // Mapear do contrato RPC para o contrato da UI
-  // Ordenar por total_leads DESC
+  // Ordenar por TAXA DE RESPOSTA (percentual) DESC
   return data
     .map(v => ({
       veiculo_interesse: v.veiculo,
       total_leads: v.total_leads,
       total_respostas: v.total_respostas,
     }))
-    .sort((a, b) => b.total_leads - a.total_leads);
+    .sort((a, b) => {
+      // Calcular taxa de resposta para ordenação
+      const taxaA = a.total_leads > 0 ? (a.total_respostas / a.total_leads) * 100 : 0;
+      const taxaB = b.total_leads > 0 ? (b.total_respostas / b.total_leads) * 100 : 0;
+      return taxaB - taxaA;
+    });
 }
 
 /**

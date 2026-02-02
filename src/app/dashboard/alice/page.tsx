@@ -54,6 +54,9 @@ export default function AlicePage() {
   const [selectedLeadName, setSelectedLeadName] = useState('');
   const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
 
+  // Paginação do heatmap de veículos
+  const [vehicleLimit, setVehicleLimit] = useState(15);
+
   const { data: brainData, fetchBrainData } = useBrainDrawerData({
     agentId: 'alice',
     leadId: selectedLeadId || '',
@@ -132,7 +135,6 @@ export default function AlicePage() {
   const funnelData: FunnelData[] = kpiFunnel
     ? [
         { stage: 'Total Base', value: kpiFunnel.total_base, fill: '#94a3b8' },
-        { stage: 'Válidos (WhatsApp)', value: kpiFunnel.validos, fill: '#64748b' },
         { stage: 'Contatados', value: kpiFunnel.contatados, fill: '#3b82f6' },
         { stage: 'Engajados (Responderam)', value: kpiFunnel.engajados, fill: '#10b981' },
       ]
@@ -203,7 +205,7 @@ export default function AlicePage() {
             Funil de Conversão
           </CardTitle>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Total Base → Válidos (WhatsApp) → Contatados → Engajados (Responderam)
+            Total Base → Contatados → Engajados (Responderam)
           </p>
         </CardHeader>
         <CardContent>
@@ -413,7 +415,7 @@ export default function AlicePage() {
             Taxa de Resposta por Veículo
           </CardTitle>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Total de leads vs. quem respondeu (last_message_lead preenchido). Taxa = respostas / total.
+            Total de leads vs. quem respondeu. Taxa = respostas / total. Ordenado por maior taxa.
           </p>
         </CardHeader>
         <CardContent>
@@ -428,7 +430,7 @@ export default function AlicePage() {
                 </tr>
               </thead>
               <tbody>
-                {vehicleHeatmap.map((row) => {
+                {vehicleHeatmap.slice(0, vehicleLimit).map((row) => {
                   const taxa = row.total_leads > 0 ? (row.total_respostas / row.total_leads) * 100 : 0;
                   return (
                     <tr key={row.veiculo_interesse} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800/50">
@@ -460,6 +462,16 @@ export default function AlicePage() {
           </div>
           {vehicleHeatmap.length === 0 && (
             <div className="py-8 text-center text-gray-500 dark:text-gray-400">Sem dados de veículos.</div>
+          )}
+          {vehicleHeatmap.length > vehicleLimit && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setVehicleLimit((prev) => prev + 15)}
+                className="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Carregar mais ({vehicleHeatmap.length - vehicleLimit} restantes)
+              </button>
+            </div>
           )}
         </CardContent>
       </Card>
