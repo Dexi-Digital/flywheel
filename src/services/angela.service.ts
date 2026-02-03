@@ -161,3 +161,26 @@ export async function getAngelaGovernance(): Promise<AngelaGovernanceData | null
     return null;
   }
 }
+
+// ============================================================================
+// SERVIÇO PRINCIPAL (COMPATIBILIDADE COM AGENTSERVICE/FACTORY)
+// ============================================================================
+
+export const angelaService: AgentService = {
+  id: 'agent-angela',
+  async getAgent(agentId: string) {
+    // Retorna uma estrutura básica para satisfazer o contrato.
+    // O dashboard novo da Angela usa os RPCs específicos acima,
+    // mas a factory ainda precisa deste objeto para montar a rota ou menu.
+    return buildAgentCommon(agentId, 'Angela', [], [], {
+      tipo: 'GOVERNANCA',
+      metricas_agregadas: {
+        // Valores zerados pois a view nova busca via getAngelaGovernance
+        leads_ativos: 0,
+        conversoes: 0,
+        receita_total: 0,
+        disparos_hoje: 0,
+      }
+    });
+  }
+};
