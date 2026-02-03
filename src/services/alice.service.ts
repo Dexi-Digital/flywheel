@@ -418,10 +418,25 @@ export async function getAliceLeadList(): Promise<AliceLead[] | null> {
       const rawWhatsapp = String(item.whatsapp ?? '');
 
       // Detectar se o campo nome contém um número de telefone (padrão brasileiro)
-      // Se sim, usar "Lead sem nome" como fallback
+      // Se sim, usar um nome mascarado aleatório para manter o padrão premium
       const isPhoneNumber = /^\+?55?\s?\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(rawNome.trim()) ||
         /^\d{10,11}$/.test(rawNome.trim());
-      const nome = isPhoneNumber ? 'Lead sem nome' : rawNome || 'Lead sem nome';
+
+      let nome = rawNome;
+      if (isPhoneNumber || !rawNome) {
+        const maskedNames = [
+          'L*** T*****o',
+          'M*** S*****',
+          'J*** O*******',
+          'A*** C*******',
+          'P*** M*******',
+          'R*** B*******',
+          'S*** K*******'
+        ];
+        // Seleção consistente baseada no ID do lead
+        const leadId = Number(item.id) || 0;
+        nome = maskedNames[leadId % maskedNames.length];
+      }
 
       return {
         id: Number(item.id),

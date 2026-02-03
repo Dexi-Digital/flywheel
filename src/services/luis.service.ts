@@ -10,7 +10,128 @@ import type {
   LuisTrafficData,
   LuisVehicleStat,
   LuisGovernanceData,
+  LuisEngagementRate,
+  LuisLeadsInAttendance,
+  LuisLeadsOutsideBusinessHours,
+  LuisTotalLeadsToday,
+  LuisUserLoja,
+  LuisUserRole,
+  LuisDocumentMatch,
 } from '@/types/luis-api.types';
+
+// ============================================================================
+// NOVAS FUNÇÕES SDR HÍBRIDO (MÉTRICAS E RPCS)
+// ============================================================================
+
+/**
+ * Chama a Edge Function rpc-metrics para obter KPIs específicos.
+ * 
+ * @param action - A ação a ser executada (total_leads_today, engagement_rate, etc)
+ * @param params - Parâmetros opcionais (tz, business_start_hour, etc)
+ */
+export async function getLuisMetrics<T>(action: string, params: Record<string, any> = {}): Promise<T | null> {
+  try {
+    const cfg = getTenantConfig('agent-luis');
+    // A URL da Edge Function segue o padrão: https://<PROJECT_REF>.functions.supabase.co/<FUNCTION_NAME>
+    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL_LUIS || cfg.supabaseUrl;
+    const projectRef = baseUrl.split('//')[1].split('.')[0];
+    const functionUrl = `https://${projectRef}.functions.supabase.co/rpc-metrics`;
+
+    const response = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${cfg.anonKey}`,
+        'apikey': cfg.anonKey,
+      },
+      body: JSON.stringify({ action, params }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erro na Edge Function rpc-metrics: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result as T;
+  } catch (err) {
+    console.error(`[Luis Metrics] Erro ao chamar ação ${action}:`, err);
+    return null;
+  }
+}
+
+/** Obtém a loja do usuário atual */
+export async function getCurrentUserLoja(): Promise<LuisUserLoja | null> {
+  try {
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+    const { data, error } = await sb.rpc('get_current_user_loja');
+    if (error) throw error;
+    return data as LuisUserLoja;
+  } catch (err) {
+    console.error('[Luis] Erro ao buscar loja do usuário:', err);
+    return null;
+  }
+}
+
+/** Obtém o papel (role) do usuário atual */
+export async function getCurrentUserRole(): Promise<LuisUserRole | null> {
+  try {
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+    const { data, error } = await sb.rpc('get_current_user_role');
+    if (error) throw error;
+    return data as LuisUserRole;
+  } catch (err) {
+    console.error('[Luis] Erro ao buscar role do usuário:', err);
+    return null;
+  }
+}
+
+/** Busca correspondência de documentos via vetorial */
+export async function matchDocuments(options: {
+  query_text: string;
+  match_limit?: number;
+  match_threshold?: number;
+}): Promise<LuisDocumentMatch[] | null> {
+  try {
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+    const { data, error } = await sb.rpc('match_documents', options);
+    if (error) throw error;
+    return data as LuisDocumentMatch[];
+  } catch (err) {
+    console.error('[Luis] Erro ao buscar documentos:', err);
+    return null;
+  }
+}
+
+/** Insere um novo lead via RPC */
+export async function insertLead(leadData: any): Promise<any | null> {
+  try {
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+    const { data, error } = await sb.rpc('insert_lead', leadData);
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('[Luis] Erro ao inserir lead:', err);
+    return null;
+  }
+}
+
+/** Triga o processamento manual de follow-ups da IA */
+export async function processarFollowupsIA(): Promise<any | null> {
+  try {
+    const cfg = getTenantConfig('agent-luis');
+    const sb = getBrowserTenantClient('agent-luis', cfg);
+    const { data, error } = await sb.rpc('processar_followups_ia');
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('[Luis] Erro ao processar follow-ups IA:', err);
+    return null;
+  }
+}
 
 function toStr(v: unknown): string | undefined {
   if (v === null || v === undefined) return undefined;

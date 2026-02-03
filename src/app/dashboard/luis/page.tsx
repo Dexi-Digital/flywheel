@@ -45,6 +45,9 @@ import {
   getLuisTrafficHeatmap,
   getLuisVehicleInterest,
   getLuisGovernance,
+  getLuisMetrics,
+  getCurrentUserLoja,
+  getCurrentUserRole,
 } from '@/services/luis.service';
 
 // Tipos da API Luís
@@ -54,6 +57,12 @@ import type {
   LuisTrafficData,
   LuisVehicleStat,
   LuisGovernanceData,
+  LuisEngagementRate,
+  LuisLeadsInAttendance,
+  LuisLeadsOutsideBusinessHours,
+  LuisTotalLeadsToday,
+  LuisUserLoja,
+  LuisUserRole,
 } from '@/types/luis-api.types';
 
 // Thresholds de governança
@@ -84,6 +93,14 @@ export default function LuisPage() {
   const [vehicleStats, setVehicleStats] = useState<LuisVehicleStat[]>([]);
   const [governanceData, setGovernanceData] = useState<LuisGovernanceData | null>(null);
 
+  // Novos estados para métricas e context
+  const [engagementRate, setEngagementRate] = useState<LuisEngagementRate | null>(null);
+  const [leadsInAttendance, setLeadsInAttendance] = useState<LuisLeadsInAttendance | null>(null);
+  const [leadsOutsideHours, setLeadsOutsideHours] = useState<LuisLeadsOutsideBusinessHours | null>(null);
+  const [totalLeadsTodayMetrics, setTotalLeadsTodayMetrics] = useState<LuisTotalLeadsToday | null>(null);
+  const [userLoja, setUserLoja] = useState<LuisUserLoja | null>(null);
+  const [userRole, setUserRole] = useState<LuisUserRole | null>(null);
+
   // Estados do BrainDrawer
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedLeadName, setSelectedLeadName] = useState('');
@@ -98,18 +115,43 @@ export default function LuisPage() {
   const loadDashboard = useCallback(async () => {
     try {
       setError(null);
-      const [pulse, qualification, traffic, vehicles, governance] = await Promise.all([
+      const [
+        pulse,
+        qualification,
+        traffic,
+        vehicles,
+        governance,
+        engagement,
+        attendance,
+        outsideHours,
+        totalToday,
+        loja,
+        role
+      ] = await Promise.all([
         getLuisKpiPulse(),
         getLuisQualificationList(),
         getLuisTrafficHeatmap(),
         getLuisVehicleInterest(),
         getLuisGovernance(),
+        getLuisMetrics<LuisEngagementRate>('engagement_rate', { tz: 'America/Sao_Paulo' }),
+        getLuisMetrics<LuisLeadsInAttendance>('leads_in_attendance'),
+        getLuisMetrics<LuisLeadsOutsideBusinessHours>('leads_outside_business_hours', { tz: 'America/Sao_Paulo' }),
+        getLuisMetrics<LuisTotalLeadsToday>('total_leads_today', { tz: 'America/Sao_Paulo' }),
+        getCurrentUserLoja(),
+        getCurrentUserRole(),
       ]);
+
       setKpiPulse(pulse);
       setQualificationList(qualification || []);
       setTrafficData(traffic || []);
       setVehicleStats(vehicles || []);
       setGovernanceData(governance);
+      setEngagementRate(engagement);
+      setLeadsInAttendance(attendance);
+      setLeadsOutsideHours(outsideHours);
+      setTotalLeadsTodayMetrics(totalToday);
+      setUserLoja(loja);
+      setUserRole(role);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dashboard');
     } finally {
@@ -200,9 +242,18 @@ export default function LuisPage() {
             <Moon className="inline-block h-8 w-8 mr-2 text-indigo-600" />
             Luís — SDR Plantão 24/7
           </h1>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">
-            Captura de leads, atendimento noturno e qualificação automática
-          </p>
+          <div className="flex flex-wrap items-center gap-3 mt-1">
+            <p className="text-gray-600 dark:text-gray-400">
+              Captura de leads, atendimento noturno e qualificação automática
+            </p>
+            {(userLoja || userRole) && (
+              <div className="flex items-center gap-2 text-xs font-semibold py-1 px-2 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                {userLoja && <span>🏪 {userLoja.nome}</span>}
+                {userLoja && userRole && <span className="opacity-30">|</span>}
+                {userRole && <span>👤 {userRole.role}</span>}
+              </div>
+            )}
+          </div>
         </div>
         <button
           type="button"
@@ -223,21 +274,24 @@ export default function LuisPage() {
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Leads Hoje</p>
               <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {kpiPulse?.total_leads_hoje?.toLocaleString('pt-BR') ?? 0}
+                {totalLeadsTodayMetrics?.total_leads_today?.toLocaleString('pt-BR') ??
+                  kpiPulse?.total_leads_hoje?.toLocaleString('pt-BR') ?? 0}
               </p>
             </div>
             <Users className="h-10 w-10 text-blue-500 opacity-50" />
           </div>
         </Card>
 
-        {/* Atendimentos IA */}
+        {/* Atendimentos IA / Em Atendimento */}
         <Card className="p-4 border-l-4 border-l-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Atendimentos IA</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Em Atendimento IA</p>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {kpiPulse?.atendimentos_ia?.toLocaleString('pt-BR') ?? 0}
+                {leadsInAttendance?.leads_in_attendance?.toLocaleString('pt-BR') ??
+                  kpiPulse?.atendimentos_ia?.toLocaleString('pt-BR') ?? 0}
               </p>
+              <p className="text-xs text-gray-500 mt-1">Sessões ativas agora</p>
             </div>
             <MessageSquare className="h-10 w-10 text-green-500 opacity-50" />
           </div>
@@ -252,7 +306,8 @@ export default function LuisPage() {
                 Leads Fora de Horário
               </p>
               <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
-                {kpiPulse?.leads_fora_horario?.toLocaleString('pt-BR') ?? 0}
+                {leadsOutsideHours?.leads_outside_business_hours ??
+                  kpiPulse?.leads_fora_horario?.toLocaleString('pt-BR') ?? 0}
               </p>
               <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
                 🌙 Plantão IA - Salvos pela automação
@@ -271,9 +326,13 @@ export default function LuisPage() {
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Taxa de Engajamento</p>
               <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
-                {(kpiPulse?.taxa_engajamento ?? 0).toFixed(1)}%
+                {engagementRate ? engagementRate.engagement_percentage.toFixed(1) : (kpiPulse?.taxa_engajamento ?? 0).toFixed(1)}%
               </p>
-              {kpiPulse && (
+              {engagementRate ? (
+                <p className={`text-xs ${engagementRate.engagement_percentage >= 80 ? 'text-green-600' : engagementRate.engagement_percentage >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                  {engagementRate.engagement_percentage >= 80 ? '✅ Excelente' : engagementRate.engagement_percentage >= 50 ? '⚠️ Atenção' : '🚨 Crítico'}
+                </p>
+              ) : kpiPulse && (
                 <p className={`text-xs ${(kpiPulse.taxa_engajamento ?? 0) >= 80 ? 'text-green-600' : (kpiPulse.taxa_engajamento ?? 0) >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
                   {(kpiPulse.taxa_engajamento ?? 0) >= 80 ? '✅ Excelente' : (kpiPulse.taxa_engajamento ?? 0) >= 50 ? '⚠️ Atenção' : '🚨 Crítico'}
                 </p>
@@ -412,9 +471,8 @@ export default function LuisPage() {
                     <tr
                       key={`${lead.whatsapp}-${index}`}
                       onClick={() => handleLeadClick(lead.nome, lead.whatsapp)}
-                      className={`border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
-                        lead.solicitou_humano ? 'bg-amber-50 dark:bg-amber-900/10' : ''
-                      }`}
+                      className={`border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 ${lead.solicitou_humano ? 'bg-amber-50 dark:bg-amber-900/10' : ''
+                        }`}
                     >
                       <td className="py-3 px-2 font-medium text-gray-900 dark:text-white">
                         {lead.nome}

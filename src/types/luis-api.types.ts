@@ -312,3 +312,48 @@ export interface LuisGovernanceData {
   leads_sem_atendimento: number;
 }
 
+// ============================================================================
+// NOVAS MÉTRICAS E RPCS (ATUALIZAÇÃO)
+// ============================================================================
+
+/** Resposta de engajamento da rpc-metrics */
+export interface LuisEngagementRate {
+  engaged_count: number;
+  total_leads_today: number;
+  engagement_percentage: number;
+}
+
+/** Resposta de leads em atendimento da rpc-metrics */
+export interface LuisLeadsInAttendance {
+  leads_in_attendance: number;
+}
+
+/** Resposta de leads fora do horário da rpc-metrics */
+export interface LuisLeadsOutsideBusinessHours {
+  leads_outside_business_hours: number;
+}
+
+/** Resposta de total de leads hoje da rpc-metrics */
+export interface LuisTotalLeadsToday {
+  total_leads_today: number;
+}
+
+/** Detalhes da loja do usuário atual */
+export interface LuisUserLoja {
+  id: string;
+  nome: string;
+}
+
+/** Papel do usuário atual */
+export interface LuisUserRole {
+  role: string;
+}
+
+/** Resultado de correspondência de documentos */
+export interface LuisDocumentMatch {
+  id: string;
+  content: string;
+  score: number;
+  metadata?: any;
+}
+
