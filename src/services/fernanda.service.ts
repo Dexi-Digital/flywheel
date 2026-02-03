@@ -78,12 +78,12 @@ export async function getFernandaLeadList(): Promise<FernandaLead[] | null> {
   }
 }
 
-export async function getFernandaActivityTimeline(): Promise<FernandaTimelineItem[] | null> {
+export async function getFernandaActivityFeed(limit: number = 20): Promise<FernandaTimelineItem[] | null> {
   try {
     const cfg = getTenantConfig('agent-fernanda');
     const sb = getBrowserTenantClient('agent-fernanda', cfg);
 
-    const { data, error } = await sb.rpc('get_fernanda_activity_timeline');
+    const { data, error } = await sb.rpc('get_fernanda_activity_timeline', { limit_rows: limit });
 
     if (error) {
       console.error('[Fernanda Timeline] Erro:', error);
@@ -92,15 +92,16 @@ export async function getFernandaActivityTimeline(): Promise<FernandaTimelineIte
 
     if (!data || !Array.isArray(data)) return [];
 
+    // O retorno vem como SETOF jsonb, mas o supabase-js pode envelopar em { get_fernanda_activity_timeline: { ... } }
     let rawList = data;
-    if (Array.isArray(data) && data.length > 0 && data[0].result) {
+    if (data.length > 0 && data[0].get_fernanda_activity_timeline) {
+      rawList = data.map((item: any) => item.get_fernanda_activity_timeline);
+    } else if (data.length > 0 && data[0].result) {
+      // Fallback para caso mude algo no wrapper
       rawList = data.map((item: any) => item.result);
     }
 
-    return rawList.map((item: any) => ({
-      data: String(item.data ?? ''),
-      total_conversas: Number(item.total_conversas) || 0,
-    }));
+    return rawList as FernandaTimelineItem[];
   } catch (err) {
     console.error('[Fernanda Timeline] Erro inesperado:', err);
     return null;

@@ -8,13 +8,8 @@ import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
   PieChart,
   Pie,
   Cell,
@@ -34,11 +29,14 @@ import {
   PhoneOff,
 } from 'lucide-react';
 
+// Componentes
+import { ActivityTimeline } from '@/components/dashboard/fernanda/ActivityTimeline';
+
 // Serviços RPC da Fernanda
 import {
   getFernandaFunnelMetrics,
   getFernandaLeadList,
-  getFernandaActivityTimeline,
+  getFernandaActivityFeed,
   getFernandaIntentDistribution,
   getFernandaGovernance,
 } from '@/services/fernanda.service';
@@ -47,7 +45,7 @@ import {
 import type {
   FernandaFunnelKPI,
   FernandaLead,
-  FernandaTimelineItem,
+  FernandaActivityEvent,
   FernandaIntentStat,
   FernandaGovernanceData,
 } from '@/types/fernanda-api.types';
@@ -60,6 +58,7 @@ const INTENT_COLORS: Record<string, string> = {
   'Interessado': '#f97316',
   'Sem Interesse': '#6b7280',
   'Indefinido': '#9ca3af',
+  'Indefinido / Sem Resposta': '#9ca3af',
 };
 const DEFAULT_INTENT_COLOR = '#9ca3af';
 
@@ -92,7 +91,13 @@ export default function FernandaPage() {
 
   const [funnelData, setFunnelData] = useState<FernandaFunnelKPI | null>(null);
   const [leadList, setLeadList] = useState<FernandaLead[]>([]);
-  const [timelineData, setTimelineData] = useState<FernandaTimelineItem[]>([]);
+
+  // Timeline Feed State
+  const [activityFeed, setActivityFeed] = useState<FernandaActivityEvent[]>([]);
+  const [feedLimit, setFeedLimit] = useState(20);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedDate, setFeedDate] = useState<number>(Date.now()); // Para forçar refresh apenas do feed
+
   const [intentStats, setIntentStats] = useState<FernandaIntentStat[]>([]);
   const [governanceData, setGovernanceData] = useState<FernandaGovernanceData | null>(null);
 
@@ -106,20 +111,18 @@ export default function FernandaPage() {
     leadId: selectedLeadId || '',
   });
 
-  // Carrega todos os dados do dashboard em paralelo
+  // Carrega Dashboard Geral (exceto feed paginado)
   const loadDashboard = useCallback(async () => {
     try {
       setError(null);
-      const [funnel, leads, timeline, intent, governance] = await Promise.all([
+      const [funnel, leads, intent, governance] = await Promise.all([
         getFernandaFunnelMetrics(),
         getFernandaLeadList(),
-        getFernandaActivityTimeline(),
         getFernandaIntentDistribution(),
         getFernandaGovernance(),
       ]);
       setFunnelData(funnel);
       setLeadList(leads || []);
-      setTimelineData(timeline || []);
       setIntentStats(intent || []);
       setGovernanceData(governance);
     } catch (err) {
@@ -130,14 +133,38 @@ export default function FernandaPage() {
     }
   }, []);
 
+  // Carrega Feed separado (para suportar load more)
+  useEffect(() => {
+    let mounted = true;
+    const fetchFeed = async () => {
+      setFeedLoading(true);
+      try {
+        const data = await getFernandaActivityFeed(feedLimit);
+        if (mounted) setActivityFeed(data || []);
+      } catch (err) {
+        console.error("Erro ao carregar feed:", err);
+      } finally {
+        if (mounted) setFeedLoading(false);
+      }
+    };
+    fetchFeed();
+    return () => { mounted = false; };
+  }, [feedLimit, feedDate]); // feedDate força recarregamento no refresh geral
+
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    setFeedLimit(20); // Reset limit
+    setFeedDate(Date.now()); // Trigger feed reload
     await loadDashboard();
   }, [loadDashboard]);
+
+  const handleLoadMoreActivity = () => {
+    setFeedLimit((prev) => prev + 20);
+  };
 
   useEffect(() => {
     if (isBrainDrawerOpen && selectedLeadId) fetchBrainData();
@@ -285,69 +312,29 @@ export default function FernandaPage() {
 
       {/* SEÇÃO 2: Atividade e Intenção (Grid 2 colunas) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Timeline de Atividade */}
-        <Card>
+        {/* Activity Timeline (Feed) */}
+        <Card className="flex flex-col h-[500px]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-purple-600" />
-              Atividade Diária
+              Feed de Atividades
             </CardTitle>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Volume de conversas por dia
+              Últimas ações da IA e interações
             </p>
           </CardHeader>
-          <CardContent>
-            {timelineData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={timelineData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis
-                    dataKey="data"
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    tickFormatter={(value) => {
-                      try {
-                        return format(new Date(value), 'dd/MM', { locale: ptBR });
-                      } catch {
-                        return value;
-                      }
-                    }}
-                    tickLine={false}
-                    axisLine={{ stroke: '#e5e7eb' }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    tickLine={false}
-                    axisLine={{ stroke: '#e5e7eb' }}
-                    width={36}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                    }}
-                    labelFormatter={(value) => {
-                      try {
-                        return format(new Date(value), 'dd/MM/yyyy', { locale: ptBR });
-                      } catch {
-                        return String(value);
-                      }
-                    }}
-                    formatter={(value) => [`${value} conversas`, 'Total']}
-                  />
-                  <Bar dataKey="total_conversas" name="Conversas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[250px] items-center justify-center text-gray-500 dark:text-gray-400">
-                Sem dados de atividade
-              </div>
-            )}
+          <CardContent className="flex-1 overflow-hidden">
+            <ActivityTimeline
+              events={activityFeed}
+              loading={feedLoading}
+              onLoadMore={handleLoadMoreActivity}
+              hasMore={true}
+            />
           </CardContent>
         </Card>
 
         {/* Distribuição de Intenção */}
-        <Card>
+        <Card className="h-[500px]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-green-600" />
@@ -359,7 +346,7 @@ export default function FernandaPage() {
           </CardHeader>
           <CardContent>
             {intentChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={350}>
                 <PieChart>
                   <Pie
                     data={intentChartData}
@@ -367,7 +354,7 @@ export default function FernandaPage() {
                     nameKey="intencao"
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
+                    outerRadius={100}
                     label={(props: { name?: string; percent?: number }) =>
                       `${props.name || ''}: ${((props.percent ?? 0) * 100).toFixed(0)}%`
                     }
@@ -378,11 +365,11 @@ export default function FernandaPage() {
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => [`${value} leads`, '']} />
-                  <Legend />
+                  <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex h-[250px] items-center justify-center text-gray-500 dark:text-gray-400">
+              <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
                 Sem dados de intenção
               </div>
             )}
@@ -584,7 +571,7 @@ export default function FernandaPage() {
                         try {
                           const parsedDate = new Date(item.created_at);
                           if (!isNaN(parsedDate.getTime())) {
-                            return format(parsedDate, "dd/MM/yyyy HH:mm", { locale: ptBR });
+                            return formatDistanceToNow(parsedDate, { addSuffix: true, locale: ptBR });
                           }
                           return item.created_at;
                         } catch {

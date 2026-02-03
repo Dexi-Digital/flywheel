@@ -58,15 +58,23 @@ export type FernandaLeadListResponse = FernandaLead[];
  * - O banco pode não retornar dias sem atividade (dias zerados)
  * - Considere preencher gaps de datas no frontend se necessário para gráfico contínuo
  */
-export interface FernandaTimelineItem {
-  /** Data no formato YYYY-MM-DD */
-  data: string;
-  /** Volume de interações/conversas no dia */
-  total_conversas: number;
+export type FernandaActivitySource = 'memoria' | 'intervencao_humana' | 'curadoria' | 'buffer_messages';
+
+/**
+ * Evento na timeline de atividade da Fernanda (Feed).
+ * Resposta do endpoint RPC get_fernanda_activity_timeline.
+ */
+export interface FernandaActivityEvent {
+  source: FernandaActivitySource;
+  id: number;
+  session_id: string;
+  created_at: string; // ISO date string
+  summary: string;
 }
 
 /** Resposta do endpoint get_fernanda_activity_timeline */
-export type FernandaTimelineResponse = FernandaTimelineItem[];
+export type FernandaTimelineItem = FernandaActivityEvent; // Manter compatibilidade de nome se possível ou refatorar
+export type FernandaActivityTimelineResponse = FernandaActivityEvent[];
 
 /**
  * Item da distribuição de intenções da Fernanda.
