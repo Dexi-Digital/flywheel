@@ -191,7 +191,6 @@ export async function getRecentAlerts(): Promise<FernandaAlert[] | null> {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${cfg.anonKey}`,
-        'Content-Type': 'application/json',
       },
     });
 
