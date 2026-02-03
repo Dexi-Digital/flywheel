@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { BrainDrawer } from '@/components/shared';
@@ -36,9 +36,10 @@ import {
   Wifi,
   WifiOff,
   AlertOctagon,
+  ChevronRight,
 } from 'lucide-react';
 
-// Serviços RPC do Luís
+// Serviços e Tipos
 import {
   getLuisKpiPulse,
   getLuisQualificationList,
@@ -50,7 +51,6 @@ import {
   getCurrentUserRole,
 } from '@/services/luis.service';
 
-// Tipos da API Luís
 import type {
   LuisKpiPulse,
   LuisQualificationLead,
@@ -65,35 +65,21 @@ import type {
   LuisUserRole,
 } from '@/types/luis-api.types';
 
-// Thresholds de governança
-const GOVERNANCE_THRESHOLDS = {
-  QUEUE_WARNING: 20,
-  QUEUE_CRITICAL: 50,
-} as const;
-
-// Cores para o gráfico de pizza de veículos
-const VEHICLE_COLORS = [
-  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
-  '#f43f5e', '#f97316', '#eab308', '#84cc16', '#22c55e',
-];
-
-// Helper para verificar se é horário do plantão (19h-08h)
+const GOVERNANCE_THRESHOLDS = { QUEUE_WARNING: 20, QUEUE_CRITICAL: 50 } as const;
+const VEHICLE_COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#84cc16', '#22c55e'];
 const isNightShiftHour = (hour: number): boolean => hour >= 19 || hour < 8;
 
 export default function LuisPage() {
-  // Estados granulares para cada seção
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Estados dos dados reais via RPC
+  // Estados de Dados
   const [kpiPulse, setKpiPulse] = useState<LuisKpiPulse | null>(null);
   const [qualificationList, setQualificationList] = useState<LuisQualificationLead[]>([]);
   const [trafficData, setTrafficData] = useState<LuisTrafficData[]>([]);
   const [vehicleStats, setVehicleStats] = useState<LuisVehicleStat[]>([]);
   const [governanceData, setGovernanceData] = useState<LuisGovernanceData | null>(null);
-
-  // Novos estados para métricas e context
   const [engagementRate, setEngagementRate] = useState<LuisEngagementRate | null>(null);
   const [leadsInAttendance, setLeadsInAttendance] = useState<LuisLeadsInAttendance | null>(null);
   const [leadsOutsideHours, setLeadsOutsideHours] = useState<LuisLeadsOutsideBusinessHours | null>(null);
@@ -101,7 +87,7 @@ export default function LuisPage() {
   const [userLoja, setUserLoja] = useState<LuisUserLoja | null>(null);
   const [userRole, setUserRole] = useState<LuisUserRole | null>(null);
 
-  // Estados do BrainDrawer
+  // BrainDrawer
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedLeadName, setSelectedLeadName] = useState('');
   const [isBrainDrawerOpen, setIsBrainDrawerOpen] = useState(false);
@@ -111,35 +97,23 @@ export default function LuisPage() {
     leadId: selectedLeadId || '',
   });
 
-  // Carrega todos os dados do dashboard em paralelo
   const loadDashboard = useCallback(async () => {
     try {
       setError(null);
-      const [
-        pulse,
-        qualification,
-        traffic,
-        vehicles,
-        governance,
-        engagement,
-        attendance,
-        outsideHours,
-        totalToday,
-        loja,
-        role
-      ] = await Promise.all([
-        getLuisKpiPulse(),
-        getLuisQualificationList(),
-        getLuisTrafficHeatmap(),
-        getLuisVehicleInterest(),
-        getLuisGovernance(),
-        getLuisMetrics<LuisEngagementRate>('engagement_rate', { tz: 'America/Sao_Paulo' }),
-        getLuisMetrics<LuisLeadsInAttendance>('leads_in_attendance'),
-        getLuisMetrics<LuisLeadsOutsideBusinessHours>('leads_outside_business_hours', { tz: 'America/Sao_Paulo' }),
-        getLuisMetrics<LuisTotalLeadsToday>('total_leads_today', { tz: 'America/Sao_Paulo' }),
-        getCurrentUserLoja(),
-        getCurrentUserRole(),
-      ]);
+      const [pulse, qualification, traffic, vehicles, governance, engagement, attendance, outsideHours, totalToday, loja, role] =
+        await Promise.all([
+          getLuisKpiPulse(),
+          getLuisQualificationList(),
+          getLuisTrafficHeatmap(),
+          getLuisVehicleInterest(),
+          getLuisGovernance(),
+          getLuisMetrics<LuisEngagementRate>('engagement_rate', { tz: 'America/Sao_Paulo' }),
+          getLuisMetrics<LuisLeadsInAttendance>('leads_in_attendance'),
+          getLuisMetrics<LuisLeadsOutsideBusinessHours>('leads_outside_business_hours', { tz: 'America/Sao_Paulo' }),
+          getLuisMetrics<LuisTotalLeadsToday>('total_leads_today', { tz: 'America/Sao_Paulo' }),
+          getCurrentUserLoja(),
+          getCurrentUserRole(),
+        ]);
 
       setKpiPulse(pulse);
       setQualificationList(qualification || []);
@@ -160,9 +134,7 @@ export default function LuisPage() {
     }
   }, []);
 
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -173,235 +145,160 @@ export default function LuisPage() {
     if (isBrainDrawerOpen && selectedLeadId) fetchBrainData();
   }, [isBrainDrawerOpen, selectedLeadId, fetchBrainData]);
 
-  const handleLeadClick = (nome: string, whatsapp: string) => {
-    // Usa o whatsapp como ID único do lead
-    setSelectedLeadId(whatsapp);
-    setSelectedLeadName(nome);
-    setIsBrainDrawerOpen(true);
-  };
+  // Cálculos de Governança
+  const gov = useMemo(() => {
+    const fila = governanceData?.fila_envio ?? 0;
+    const semAtendimento = governanceData?.leads_sem_atendimento ?? 0;
+    return {
+      fila,
+      semAtendimento,
+      isConnected: governanceData?.status_whatsapp === 'connected',
+      isCritical: fila > GOVERNANCE_THRESHOLDS.QUEUE_CRITICAL || semAtendimento > 0,
+      isWarning: fila > GOVERNANCE_THRESHOLDS.QUEUE_WARNING
+    };
+  }, [governanceData]);
 
-  // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="h-8 w-8 animate-spin text-indigo-600" />
-          <p className="text-gray-500 dark:text-gray-400">Carregando dashboard Luís...</p>
-        </div>
+      <div className="flex h-[80vh] flex-col items-center justify-center gap-4">
+        <RefreshCw className="h-10 w-10 animate-spin text-indigo-600" />
+        <p className="animate-pulse font-medium text-slate-500">Sincronizando dados do Luís...</p>
       </div>
     );
   }
-
-  // Error state
-  if (error) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center p-8">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8">
-            <div className="flex flex-col items-center text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
-                <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
-              </div>
-              <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Erro ao carregar dados</h3>
-              <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">{error}</p>
-              <button
-                onClick={() => { setLoading(true); loadDashboard(); }}
-                className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Tentar novamente
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Cálculos derivados de governança
-  const filaEnvio = governanceData?.fila_envio ?? 0;
-  const leadsSemAtendimento = governanceData?.leads_sem_atendimento ?? 0;
-  const statusWhatsapp = governanceData?.status_whatsapp ?? 'unknown';
-  const isWhatsappConnected = statusWhatsapp === 'connected';
-  const hasQueueWarning = filaEnvio > GOVERNANCE_THRESHOLDS.QUEUE_WARNING;
-  const hasQueueCritical = filaEnvio > GOVERNANCE_THRESHOLDS.QUEUE_CRITICAL;
-  const hasLeadsLost = leadsSemAtendimento > 0;
-
-  // Contadores para métricas
-  const leadsQueQuereHumano = qualificationList.filter(l => l.solicitou_humano).length;
-
-  // Formata hora para exibição no gráfico
-  const formatHour = (hora: number) => `${hora.toString().padStart(2, '0')}h`;
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            <Moon className="inline-block h-8 w-8 mr-2 text-indigo-600" />
-            Luís — SDR Plantão 24/7
-          </h1>
-          <div className="flex flex-wrap items-center gap-3 mt-1">
-            <p className="text-gray-600 dark:text-gray-400">
-              Captura de leads, atendimento noturno e qualificação automática
-            </p>
-            {(userLoja || userRole) && (
-              <div className="flex items-center gap-2 text-xs font-semibold py-1 px-2 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                {userLoja && <span>🏪 {userLoja.nome}</span>}
-                {userLoja && userRole && <span className="opacity-30">|</span>}
-                {userRole && <span>👤 {userRole.role}</span>}
-              </div>
-            )}
+    <div className="mx-auto max-w-[1600px] space-y-6 p-6 pb-20">
+
+      {/* HEADER DINÂMICO */}
+      <header className="flex flex-col gap-4 border-b pb-6 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-indigo-600 p-2 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+              <Moon className="h-6 w-6" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Luís</h1>
+            <Badge variant="outline" className="h-6 border-indigo-200 bg-indigo-50 text-indigo-700">SDR Plantão 24/7</Badge>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-slate-500">
+            {userLoja && <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">🏪 {userLoja.nome}</span>}
+            <span className="h-4 w-px bg-slate-300" />
+            <span>Gestão de Leads e Qualificação Noturna</span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Atualizando...' : 'Atualizar'}
-        </button>
+
+        <div className="flex items-center gap-3">
+          <Badge className={`px-3 py-1 text-xs font-semibold ${gov.isConnected ? 'bg-emerald-100 text-emerald-700' : 'animate-bounce bg-red-100 text-red-700'}`}>
+            {gov.isConnected ? <Wifi className="mr-1 h-3 w-3" /> : <WifiOff className="mr-1 h-3 w-3" />}
+            {gov.isConnected ? 'WhatsApp Ativo' : 'WhatsApp Desconectado'}
+          </Badge>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        </div>
+      </header>
+
+      {/* ZONA DE ALERTA CRÍTICO (Apenas se houver erro ou fila alta) */}
+      {gov.isCritical && (
+        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm dark:bg-red-950/20 dark:text-red-400">
+          <div className="flex items-center gap-3">
+            <AlertOctagon className="h-6 w-6 animate-pulse" />
+            <div>
+              <p className="font-bold">Ação Necessária na Governança</p>
+              <p className="text-sm opacity-90">
+                {gov.semAtendimento > 0 && `${gov.semAtendimento} leads sem atendimento IA.`}
+                {gov.fila > GOVERNANCE_THRESHOLDS.QUEUE_WARNING && ` Fila de envio sobrecarregada (${gov.fila} msgs).`}
+              </p>
+            </div>
+          </div>
+          <button className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white transition-hover hover:bg-red-700">Resolver Agora</button>
+        </div>
+      )}
+
+      {/* BLOCO 1: KPIs DE OPERAÇÃO */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          title="Total Leads Hoje"
+          value={totalLeadsTodayMetrics?.total_leads_today ?? kpiPulse?.total_leads_hoje ?? 0}
+          icon={<Users className="h-5 w-5" />}
+          color="blue"
+        />
+        <KpiCard
+          title="Atendimento IA Ativo"
+          value={leadsInAttendance?.leads_in_attendance ?? kpiPulse?.atendimentos_ia ?? 0}
+          subtitle="Sessões em tempo real"
+          icon={<MessageSquare className="h-5 w-5" />}
+          color="green"
+        />
+        <KpiCard
+          title="Resgatados no Plantão"
+          value={leadsOutsideHours?.leads_outside_business_hours ?? kpiPulse?.leads_fora_horario ?? 0}
+          subtitle="Salvos fora do comercial"
+          icon={<Moon className="h-5 w-5" />}
+          color="indigo"
+          highlight
+        />
+        <KpiCard
+          title="Taxa Engajamento"
+          value={`${(engagementRate?.engagement_percentage ?? kpiPulse?.taxa_engajamento ?? 0).toFixed(1)}%`}
+          subtitle={engagementRate?.engagement_percentage && engagementRate.engagement_percentage > 80 ? '✅ Desempenho excelente' : '⚠️ Verifique o script'}
+          icon={<Signal className="h-5 w-5" />}
+          color="amber"
+        />
       </div>
 
-      {/* SEÇÃO 1: KPIs de Plantão */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Leads Hoje */}
-        <Card className="p-4 border-l-4 border-l-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Leads Hoje</p>
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {totalLeadsTodayMetrics?.total_leads_today?.toLocaleString('pt-BR') ??
-                  kpiPulse?.total_leads_hoje?.toLocaleString('pt-BR') ?? 0}
-              </p>
-            </div>
-            <Users className="h-10 w-10 text-blue-500 opacity-50" />
-          </div>
-        </Card>
-
-        {/* Atendimentos IA / Em Atendimento */}
-        <Card className="p-4 border-l-4 border-l-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Em Atendimento IA</p>
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {leadsInAttendance?.leads_in_attendance?.toLocaleString('pt-BR') ??
-                  kpiPulse?.atendimentos_ia?.toLocaleString('pt-BR') ?? 0}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">Sessões ativas agora</p>
-            </div>
-            <MessageSquare className="h-10 w-10 text-green-500 opacity-50" />
-          </div>
-        </Card>
-
-        {/* 🌙 DESTAQUE: Leads Fora de Horário - KPI Principal do Luís */}
-        <Card className="p-4 border-l-4 border-l-indigo-500 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
-                <Moon className="h-4 w-4" />
-                Leads Fora de Horário
-              </p>
-              <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
-                {leadsOutsideHours?.leads_outside_business_hours ??
-                  kpiPulse?.leads_fora_horario?.toLocaleString('pt-BR') ?? 0}
-              </p>
-              <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
-                🌙 Plantão IA - Salvos pela automação
-              </p>
-            </div>
-            <div className="relative">
-              <Moon className="h-12 w-12 text-indigo-500" />
-              <Zap className="h-5 w-5 text-yellow-500 absolute -bottom-1 -right-1" />
-            </div>
-          </div>
-        </Card>
-
-        {/* Taxa de Engajamento */}
-        <Card className="p-4 border-l-4 border-l-amber-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Taxa de Engajamento</p>
-              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
-                {engagementRate ? engagementRate.engagement_percentage.toFixed(1) : (kpiPulse?.taxa_engajamento ?? 0).toFixed(1)}%
-              </p>
-              {engagementRate ? (
-                <p className={`text-xs ${engagementRate.engagement_percentage >= 80 ? 'text-green-600' : engagementRate.engagement_percentage >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {engagementRate.engagement_percentage >= 80 ? '✅ Excelente' : engagementRate.engagement_percentage >= 50 ? '⚠️ Atenção' : '🚨 Crítico'}
-                </p>
-              ) : kpiPulse && (
-                <p className={`text-xs ${(kpiPulse.taxa_engajamento ?? 0) >= 80 ? 'text-green-600' : (kpiPulse.taxa_engajamento ?? 0) >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {(kpiPulse.taxa_engajamento ?? 0) >= 80 ? '✅ Excelente' : (kpiPulse.taxa_engajamento ?? 0) >= 50 ? '⚠️ Atenção' : '🚨 Crítico'}
-                </p>
-              )}
-            </div>
-            <Signal className="h-10 w-10 text-amber-500 opacity-50" />
-          </div>
-        </Card>
-      </div>
-
-      {/* SEÇÃO 2: Inteligência de Tráfego (Split View) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Esquerda: Horários de Pico (BarChart) */}
-        <Card>
-          <CardHeader>
+      {/* BLOCO 2: INTELIGÊNCIA E GRÁFICOS */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Clock className="h-5 w-5 text-indigo-600" />
-              Distribuição de Tráfego por Hora
+              Concentração por Horário
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trafficData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis
-                    dataKey="hora"
-                    tickFormatter={formatHour}
-                    tick={{ fontSize: 10 }}
-                    interval={2}
-                  />
-                  <YAxis tick={{ fontSize: 11 }} />
+                <BarChart data={trafficData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="opacity-30" />
+                  <XAxis dataKey="hora" tickFormatter={(h) => `${h}h`} tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip
-                    formatter={(value) => [`${value} leads`, 'Volume']}
-                    labelFormatter={(hora) => `${formatHour(Number(hora))} ${isNightShiftHour(Number(hora)) ? '🌙 Plantão' : '☀️ Comercial'}`}
+                    cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
+                    content={({ active, payload }) => {
+                      if (active && payload?.[0]) {
+                        const h = payload[0].payload.hora;
+                        return (
+                          <div className="rounded-lg border bg-white p-2 shadow-xl dark:bg-slate-900">
+                            <p className="text-xs font-bold">{h}h - {isNightShiftHour(h) ? '🌙 Plantão' : '☀️ Comercial'}</p>
+                            <p className="text-sm text-indigo-600">{payload[0].value} leads</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
-                  <Bar
-                    dataKey="volume"
-                    radius={[4, 4, 0, 0]}
-                  >
-                    {trafficData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={isNightShiftHour(entry.hora) ? '#6366f1' : '#94a3b8'}
-                      />
+                  <Bar dataKey="volume" radius={[4, 4, 0, 0]}>
+                    {trafficData.map((entry, i) => (
+                      <Cell key={i} fill={isNightShiftHour(entry.hora) ? '#6366f1' : '#cbd5e1'} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex items-center justify-center gap-6 mt-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-indigo-500"></div>
-                <span className="text-gray-600 dark:text-gray-400">Plantão Luís (19h-08h)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-slate-400"></div>
-                <span className="text-gray-600 dark:text-gray-400">Horário Comercial</span>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
-        {/* Direita: Veículos Mais Buscados (PieChart) */}
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <CarFront className="h-5 w-5 text-purple-600" />
-              Top 10 Veículos Mais Procurados
+              Ranking de Interesse
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -410,21 +307,16 @@ export default function LuisPage() {
                 <PieChart>
                   <Pie
                     data={vehicleStats}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
+                    innerRadius={60}
                     outerRadius={100}
-                    fill="#8884d8"
+                    paddingAngle={5}
                     dataKey="total"
                     nameKey="veiculo"
-                    label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
                   >
-                    {vehicleStats.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={VEHICLE_COLORS[index % VEHICLE_COLORS.length]} />
-                    ))}
+                    {vehicleStats.map((_, i) => <Cell key={i} fill={VEHICLE_COLORS[i % VEHICLE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(value, name) => [`${value} interessados`, name]} />
-                  <Legend />
+                  <Tooltip />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -432,157 +324,72 @@ export default function LuisPage() {
         </Card>
       </div>
 
-      {/* SEÇÃO 3: Lista de Qualificação (Tabela Handover) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-lg">
-              <User className="h-5 w-5 text-blue-600" />
-              Leads Qualificados - Handover para SDR
-            </span>
-            {leadsQueQuereHumano > 0 && (
-              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 animate-pulse">
-                {leadsQueQuereHumano} solicitaram agente
-              </Badge>
+      {/* BLOCO 3: LISTA OPERACIONAL (HANDOVER) */}
+      <Card className="overflow-hidden shadow-md">
+        <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-1 bg-blue-600 rounded-full" />
+              <CardTitle className="text-xl">Fila de Qualificação</CardTitle>
+            </div>
+            {qualificationList.filter(l => l.solicitou_humano).length > 0 && (
+              <Badge className="animate-pulse bg-amber-500 text-white">Urgente: Solicitação de Agente</Badge>
             )}
-          </CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          {qualificationList.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">
-              <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-green-500 opacity-50" />
-              <p>Nenhum lead pendente de qualificação</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-3 px-2 font-medium text-gray-600 dark:text-gray-400">Nome</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-600 dark:text-gray-400">WhatsApp</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-600 dark:text-gray-400">Veículo</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-600 dark:text-gray-400">Entrada</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-600 dark:text-gray-400">Resumo IA</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-600 dark:text-gray-400">Status</th>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-900">
+                  <th className="px-6 py-4">Lead</th>
+                  <th className="px-6 py-4">Veículo</th>
+                  <th className="px-6 py-4">Chegada</th>
+                  <th className="px-6 py-4">Análise IA</th>
+                  <th className="px-6 py-4 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {qualificationList.map((lead, i) => (
+                  <tr
+                    key={i}
+                    onClick={() => handleLeadClick(lead.nome, lead.whatsapp)}
+                    className="group cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-slate-900 dark:text-white">{lead.nome}</div>
+                      <div className="text-xs text-emerald-600 flex items-center gap-1 font-medium">{lead.whatsapp}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge variant="secondary" className="rounded-md font-medium">
+                        {lead.interesse_veiculo || 'Geral'}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-slate-500">
+                      {format(new Date(lead.horario_entrada), "HH:mm '•' dd/MM", { locale: ptBR })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="max-w-[250px] truncate text-xs text-slate-600 dark:text-slate-400" title={lead.resumo_ia}>
+                        {lead.resumo_ia || 'Aguardando interação...'}
+                      </p>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {lead.solicitou_humano && (
+                          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40">SDR 🙋‍♂️</Badge>
+                        )}
+                        <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-1" />
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {qualificationList.map((lead, index) => (
-                    <tr
-                      key={`${lead.whatsapp}-${index}`}
-                      onClick={() => handleLeadClick(lead.nome, lead.whatsapp)}
-                      className={`border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 ${lead.solicitou_humano ? 'bg-amber-50 dark:bg-amber-900/10' : ''
-                        }`}
-                    >
-                      <td className="py-3 px-2 font-medium text-gray-900 dark:text-white">
-                        {lead.nome}
-                      </td>
-                      <td className="py-3 px-2 text-gray-600 dark:text-gray-400">
-                        <a
-                          href={`https://wa.me/${lead.whatsapp.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1 text-green-600 hover:text-green-700"
-                        >
-                          <Phone className="h-3 w-3" />
-                          {lead.whatsapp}
-                        </a>
-                      </td>
-                      <td className="py-3 px-2">
-                        {lead.interesse_veiculo ? (
-                          <Badge variant="default" className="text-xs bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                            {lead.interesse_veiculo}
-                          </Badge>
-                        ) : (
-                          <span className="text-gray-400 text-xs">Não especificado</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-2 text-gray-600 dark:text-gray-400 text-xs">
-                        {(() => {
-                          try {
-                            const date = new Date(lead.horario_entrada);
-                            return format(date, "dd/MM HH:mm", { locale: ptBR });
-                          } catch {
-                            return lead.horario_entrada;
-                          }
-                        })()}
-                      </td>
-                      <td className="py-3 px-2 max-w-[200px]">
-                        {lead.resumo_ia ? (
-                          <span
-                            className="text-xs text-gray-600 dark:text-gray-400 truncate block"
-                            title={lead.resumo_ia}
-                          >
-                            {lead.resumo_ia.length > 60
-                              ? `${lead.resumo_ia.substring(0, 60)}...`
-                              : lead.resumo_ia}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-2">
-                        {lead.solicitou_humano ? (
-                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100 text-xs">
-                            Solicitou Agente
-                          </Badge>
-                        ) : (
-                          <Badge variant="default" className="text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                            Qualificado
-                          </Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 
-      {/* SEÇÃO 4: Infraestrutura e Governança */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Fila de Envio */}
-        <Card className={`p-4 ${hasQueueCritical ? 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-900/10' : hasQueueWarning ? 'border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-900/10' : 'border-l-4 border-l-gray-300'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Fila de Envio</p>
-              <p className={`text-xl font-bold ${hasQueueCritical ? 'text-red-600' : hasQueueWarning ? 'text-amber-600' : 'text-gray-900 dark:text-white'}`}>
-                {filaEnvio} mensagens
-              </p>
-              {hasQueueCritical && <p className="text-xs text-red-600 mt-1">🚨 Sistema sobrecarregado</p>}
-              {hasQueueWarning && !hasQueueCritical && <p className="text-xs text-amber-600 mt-1">⚠️ Lentidão detectada</p>}
-            </div>
-            <MessageSquare className={`h-10 w-10 ${hasQueueCritical ? 'text-red-500' : hasQueueWarning ? 'text-amber-500' : 'text-gray-400'}`} />
-          </div>
-        </Card>
-
-        {/* Leads sem Atendimento - CRÍTICO */}
-        <Card className={`p-4 ${hasLeadsLost ? 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-900/10' : 'border-l-4 border-l-green-500'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Leads sem Atendimento</p>
-              <p className={`text-xl font-bold ${hasLeadsLost ? 'text-red-600 animate-pulse' : 'text-green-600'}`}>
-                {leadsSemAtendimento}
-              </p>
-              {hasLeadsLost ? (
-                <p className="text-xs text-red-600 mt-1">🚨 Potencial perda de vendas!</p>
-              ) : (
-                <p className="text-xs text-green-600 mt-1">✅ Todos atendidos</p>
-              )}
-            </div>
-            {hasLeadsLost ? (
-              <AlertOctagon className="h-10 w-10 text-red-500 animate-pulse" />
-            ) : (
-              <CheckCircle2 className="h-10 w-10 text-green-500" />
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* Brain Drawer */}
+      {/* BRAIN DRAWER */}
       <BrainDrawer
         isOpen={isBrainDrawerOpen}
         onClose={() => setIsBrainDrawerOpen(false)}
@@ -594,5 +401,37 @@ export default function LuisPage() {
         memoryData={brainData.memoryData}
       />
     </div>
+  );
+}
+
+// Sub-componente para cards de KPI
+function KpiCard({ title, value, subtitle, icon, color, highlight = false }: any) {
+  const colors = {
+    blue: 'border-l-blue-500 text-blue-600 bg-blue-50/30',
+    green: 'border-l-emerald-500 text-emerald-600 bg-emerald-50/30',
+    indigo: 'border-l-indigo-600 text-indigo-600 bg-indigo-50/30',
+    amber: 'border-l-amber-500 text-amber-600 bg-amber-50/30',
+  };
+
+  return (
+    <Card className={`relative overflow-hidden border-l-4 shadow-sm transition-all hover:shadow-md ${colors[color as keyof typeof colors]}`}>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</p>
+            <p className="text-3xl font-black">{value}</p>
+            {subtitle && <p className="text-[10px] font-medium text-slate-400">{subtitle}</p>}
+          </div>
+          <div className={`rounded-full p-2 opacity-20 ${colors[color as keyof typeof colors]}`}>
+            {icon}
+          </div>
+        </div>
+        {highlight && (
+          <div className="absolute bottom-0 right-0 p-1">
+            <Zap className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
