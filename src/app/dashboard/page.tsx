@@ -1,107 +1,55 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
 import type { Agent } from '@/types/database.types';
-import {
-  fetchKanbanData,
-  getEmptyKanbanResponse,
-  type KanbanApiResponse,
-} from '@/services/kanban-api.service';
-import {
-  Users,
-  DollarSign,
-  ChevronRight,
-  RefreshCw,
-  Target,
-  Moon,
-  MessageSquare,
-  ThumbsUp,
-  AlertTriangle,
-  Phone,
-  TrendingUp,
-} from 'lucide-react';
+import { fetchKanbanData, getEmptyKanbanResponse } from '@/services/kanban-api.service';
+import { Users, DollarSign, ChevronRight, RefreshCw, Target, Moon, MessageSquare, ThumbsUp, AlertTriangle, Phone, TrendingUp, CheckCircle2, Activity, Clock, Zap, X } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
+import { SystemicMatrix, MatrixMode } from '@/components/dashboard/SystemicMatrix';
+import { AgentProcessMap } from '@/components/dashboard/AgentProcessMap';
 
-// Serviços de KPI de cada agente
+// Serviços e Tipos
 import { getLuisKpiPulse } from '@/services/luis.service';
 import { getAngelaKpiPulse } from '@/services/angela.service';
 import { getAliceFunnelMetrics } from '@/services/alice.service';
 import { getFernandaFunnelMetrics } from '@/services/fernanda.service';
-
-// Tipos de KPI
 import type { LuisKpiPulse } from '@/types/luis-api.types';
 import type { AngelaKpiPulse } from '@/types/angela-api.types';
 import type { AliceFunnelKPI } from '@/services/alice.service';
 import type { FernandaFunnelKPI } from '@/types/fernanda-api.types';
 
-// Tipo unificado para KPIs de agentes
 interface AgentKpiData {
   luis?: LuisKpiPulse | null;
   angela?: AngelaKpiPulse | null;
   alice?: AliceFunnelKPI | null;
   fernanda?: FernandaFunnelKPI | null;
-  vitor?: {
-    clientes_recuperados: number;
-    receita_recuperada: number;
-    em_negociacao: number;
-  } | null;
+  vitor?: { clientes_recuperados: number; receita_recuperada: number; em_negociacao: number; } | null;
 }
 
-const AGENT_IDS = [
-  'agent-luis',
-  'agent-angela',
-  'agent-alice',
-  'agent-fernanda',
-  'agent-vitor',
-] as const;
-
-// Mapeamento de ângulos para rotacionar o motor (em graus)
-const PHASE_ANGLES = {
-  'ATRAIR': 60,   // Alice
-  'ENGAJAR': -60,  // Luis
-  'ENCANTAR': 180, // Angela & Vitor
-};
-
-function getAgentHref(agentId: string): string {
-  const map: Record<string, string> = {
-    'agent-vitor': '/dashboard/vitor',
-    'agent-alice': '/dashboard/alice',
-    'agent-angela': '/dashboard/angela',
-    'agent-fernanda': '/dashboard/fernanda',
-    'agent-luis': '/dashboard/luis',
-  };
-  return map[agentId] || `/dashboard/agentes/${agentId}`;
-}
+// ORDER: Alice -> Luis -> Fernanda -> Angela -> Vitor
+const AGENT_IDS = ['agent-alice', 'agent-luis', 'agent-fernanda', 'agent-angela', 'agent-vitor'] as const;
 
 export default function DashboardPage() {
   const [agents, setAgents] = useState<Record<string, Agent | null>>({});
-  const [, setKanban] = useState<KanbanApiResponse | null>(null);
   const [agentKpis, setAgentKpis] = useState<AgentKpiData>({});
   const [loading, setLoading] = useState(true);
-
-  // Estados de Interação
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [rotation, setRotation] = useState(0);
+  const [viewMode, setViewMode] = useState<MatrixMode>('IMPACT');
 
   const loadData = useCallback(async () => {
     setLoading(true);
-
-    // Buscar dados básicos dos agentes
     const agentPromises = AGENT_IDS.map(async (id) => {
       try {
         const res = await fetch(`/api/agents/${id}`);
         const json = await res.json();
         return { id, agent: json.ok ? json.agent : null };
-      } catch {
-        return { id, agent: null };
-      }
+      } catch { return { id, agent: null }; }
     });
 
-    // Buscar KPIs específicos de cada agente em paralelo
     const [luisKpi, angelaKpi, aliceKpi, fernandaKpi, kanbanData] = await Promise.all([
       getLuisKpiPulse().catch(() => null),
       getAngelaKpiPulse().catch(() => null),
@@ -114,167 +62,253 @@ export default function DashboardPage() {
     const byId: Record<string, Agent | null> = {};
     results.forEach(({ id, agent }) => { byId[id] = agent; });
 
-    // Montar KPIs do Vitor a partir do Kanban
-    const vitorKpi = kanbanData ? {
-      clientes_recuperados: kanbanData.meta['Recuperado']?.count ?? 0,
-      receita_recuperada: kanbanData.meta['Recuperado']?.total_recuperado ?? 0,
-      em_negociacao: kanbanData.meta['Em Negociacao']?.count ?? 0,
-    } : null;
-
     setAgents(byId);
-    setKanban(kanbanData);
     setAgentKpis({
-      luis: luisKpi,
-      angela: angelaKpi,
-      alice: aliceKpi,
-      fernanda: fernandaKpi,
-      vitor: vitorKpi,
+      luis: luisKpi, angela: angelaKpi, alice: aliceKpi, fernanda: fernandaKpi,
+      vitor: kanbanData ? {
+        clientes_recuperados: kanbanData.meta['Recuperado']?.count ?? 0,
+        receita_recuperada: kanbanData.meta['Recuperado']?.total_recuperado ?? 0,
+        em_negociacao: kanbanData.meta['Em Negociacao']?.count ?? 0,
+      } : null,
     });
     setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Função para selecionar agente e girar motor
-  const handleAgentClick = (agentId: string, phase?: keyof typeof PHASE_ANGLES) => {
+  const handleAgentClick = (agentId: string) => {
     setSelectedAgentId(agentId);
-    if (phase) {
-      setRotation(PHASE_ANGLES[phase]);
-    }
   };
 
   const selectedAgent = selectedAgentId ? agents[selectedAgentId] : null;
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <motion.div 
-          animate={{ rotate: 360 }} 
-          transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-        >
-          <RefreshCw className="h-10 w-10 text-blue-500" />
-        </motion.div>
-      </div>
-    );
-  }
+  // Helper de Normalização
+  const normalize = (val: number, max: number) => {
+    if (!val) return 0;
+    return Math.min((val / max) * 100, 100);
+  };
+
+  // SYSTEMIC MATRIX DATA PREPARATION
+  const matrixData = useMemo(() => {
+    const { alice, luis, fernanda, angela, vitor } = agentKpis;
+
+    // Adaptação dos dados de Fernanda
+    const fernandaData = fernanda ? {
+      base_total: fernanda.base_total,
+      receita_recuperada: (fernanda.com_intencao || 0) * 800, // Derivado
+      taxa_recuperacao: fernanda.base_total > 0 ? ((fernanda.com_intencao || 0) / fernanda.base_total * 100).toFixed(1) : 0,
+      intervencoes: fernanda.intervencoes,
+      validos: fernanda.com_intencao || 0,
+    } : null;
+
+    // DATA ORDER: Alice -> Luis -> Fernanda -> Angela -> Vitor
+
+    // -- DADOS DE IMPACTO (Sucesso/Receita) --
+    const impactRows = [
+      {
+        id: 'revenue',
+        label: 'Receita / Valor',
+        icon: <DollarSign className="w-4 h-4" />,
+        data: [
+          {
+            agentId: 'agent-alice', agentName: 'Alice', value: '-', score: 0,
+            hint: 'Geração de Pipeline (Potencial)'
+          },
+          {
+            agentId: 'agent-luis', agentName: 'Luís', value: '-', score: 0,
+            hint: 'Qualificação de Receita'
+          },
+          {
+            agentId: 'agent-fernanda', agentName: 'Fernanda', value: `R$ ${(fernandaData?.receita_recuperada || 0).toLocaleString('pt-BR', { notation: 'compact' })}`, score: normalize(fernandaData?.receita_recuperada || 0, 200000),
+            hint: 'Receita Salva (Winback)'
+          },
+          {
+            agentId: 'agent-angela', agentName: 'Ângela', value: '-', score: 0,
+            hint: 'Preservação de LTV'
+          },
+          {
+            agentId: 'agent-vitor', agentName: 'Vitor', value: `R$ ${(vitor?.receita_recuperada || 0).toLocaleString('pt-BR', { notation: 'compact' })}`, score: normalize(vitor?.receita_recuperada || 0, 500000),
+            hint: 'Receita Confirmada (Fechamento)'
+          },
+        ]
+      },
+      {
+        id: 'volume',
+        label: 'Volumetria Ativa',
+        icon: <Users className="w-4 h-4" />,
+        data: [
+          {
+            agentId: 'agent-alice', agentName: 'Alice', value: alice?.base_total || 0, score: normalize(alice?.base_total || 0, 5000),
+            hint: 'Prospects em Cadência Ativa'
+          },
+          {
+            agentId: 'agent-luis', agentName: 'Luís', value: luis?.total_leads_hoje || 0, score: normalize(luis?.total_leads_hoje || 0, 100),
+            hint: 'Atendimentos Realizados (24h)'
+          },
+          {
+            agentId: 'agent-fernanda', agentName: 'Fernanda', value: fernandaData?.base_total || 0, score: normalize(fernandaData?.base_total || 0, 1000),
+            hint: 'Oportunidades Perdidas Processadas'
+          },
+          {
+            agentId: 'agent-angela', agentName: 'Ângela', value: angela?.total_atendimentos || 0, score: normalize(angela?.total_atendimentos || 0, 200),
+            hint: 'Clientes em Carteira Atendidos'
+          },
+          {
+            agentId: 'agent-vitor', agentName: 'Vitor', value: vitor?.em_negociacao || 0, score: normalize(vitor?.em_negociacao || 0, 50),
+            hint: 'Deals em Negociação Ativa'
+          },
+        ]
+      },
+      {
+        id: 'conversion',
+        label: 'Conversão / Engaj.',
+        icon: <Zap className="w-4 h-4" />,
+        data: [
+          {
+            agentId: 'agent-alice', agentName: 'Alice',
+            value: alice?.contatados ? `${Math.round((alice.engajados / alice.contatados) * 100)}%` : '0%',
+            score: alice?.contatados ? normalize((alice.engajados / alice.contatados) * 100, 30) : 0,
+            hint: 'Eficiência de Resposta (Prospecção)'
+          },
+          {
+            agentId: 'agent-luis', agentName: 'Luís',
+            value: `${(luis?.taxa_engajamento || 0).toFixed(0)}%`, score: normalize(luis?.taxa_engajamento || 0, 80),
+            hint: 'Retenção Automática (Sem Transbordo)'
+          },
+          {
+            agentId: 'agent-fernanda', agentName: 'Fernanda',
+            value: `${fernandaData?.taxa_recuperacao || 0}%`, score: normalize(Number(fernandaData?.taxa_recuperacao || 0), 15),
+            hint: 'Taxa de Reversão de Churn'
+          },
+          {
+            agentId: 'agent-angela', agentName: 'Ângela',
+            value: angela?.total_atendimentos ? `${Math.round((angela.sentimento_positivo / angela.total_atendimentos) * 100)}%` : '0%',
+            score: angela?.total_atendimentos ? normalize((angela.sentimento_positivo / angela.total_atendimentos) * 100, 90) : 0,
+            hint: 'Satisfação Detectada (Sentimento)'
+          },
+          {
+            agentId: 'agent-vitor', agentName: 'Vitor', value: '-', score: 0,
+            hint: 'Win-Rate Semanal'
+          },
+        ]
+      }
+    ];
+
+    // -- DADOS DE RISCO (Gargalos) --
+    // ORDER: Alice -> Luis -> Fernanda -> Angela -> Vitor
+    const riskRows = [
+      {
+        id: 'stalled',
+        label: 'Backlog / Parados',
+        icon: <Clock className="w-4 h-4" />,
+        data: [
+          {
+            agentId: 'agent-alice', agentName: 'Alice', value: (alice?.base_total || 0) - (alice?.contatados || 0),
+            score: normalize((alice?.base_total || 0) - (alice?.contatados || 0), 1000),
+            hint: 'Fila de Envio Pendente'
+          },
+          {
+            agentId: 'agent-luis', agentName: 'Luís', value: luis?.leads_fora_horario || 0, score: normalize(luis?.leads_fora_horario || 0, 20),
+            hint: 'Fila de Espera Noturna'
+          },
+          { agentId: 'agent-fernanda', agentName: 'Fernanda', value: (fernandaData?.base_total || 0) - (fernandaData?.validos || 0), score: normalize((fernandaData?.base_total || 0) - (fernandaData?.validos || 0), 200), hint: 'Leads Descartados (Sem Contato)' },
+          { agentId: 'agent-angela', agentName: 'Ângela', value: 0, score: 0, hint: 'Fila Pós-Venda' },
+          { agentId: 'agent-vitor', agentName: 'Vitor', value: 0, score: 0, hint: 'Deals Estagnados' },
+        ]
+      },
+      {
+        id: 'critical',
+        label: 'Intervenções / Erros',
+        icon: <AlertTriangle className="w-4 h-4" />,
+        data: [
+          { agentId: 'agent-alice', agentName: 'Alice', value: 0, score: 0, hint: 'Erros de API / Bloqueio' },
+          { agentId: 'agent-luis', agentName: 'Luís', value: 0, score: 0, hint: 'Alucinações / Falha de Contexto' },
+          { agentId: 'agent-fernanda', agentName: 'Fernanda', value: fernandaData?.intervencoes || 0, score: normalize(fernandaData?.intervencoes || 0, 10), hint: 'Intervenções Manuais Críticas' },
+          { agentId: 'agent-angela', agentName: 'Ângela', value: angela?.problemas_detectados || 0, score: normalize(angela?.problemas_detectados || 0, 15), hint: 'Detratores Críticos' },
+          { agentId: 'agent-vitor', agentName: 'Vitor', value: 0, score: 0, hint: 'Deals em Risco de Perda' },
+        ]
+      }
+    ];
+
+    return { impactRows, riskRows };
+
+  }, [agentKpis]);
+
+  if (loading) return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }}>
+        <RefreshCw className="h-10 w-10 text-blue-500" />
+      </motion.div>
+    </div>
+  );
 
   return (
     <div className="flex flex-col items-center space-y-12 pb-20">
       <div className="text-center">
         <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">
-          Centro de Comando: Motor de Receita
+          Centro de Comando
         </h1>
-        <p className="text-slate-500">Selecione um agente para focar na operação</p>
       </div>
 
-      {/* MOTOR DE RECEITA INTERATIVO */}
-      <div className="relative w-[500px] h-[500px] flex items-center justify-center">
-        
-        {/* Camada de Rotação (Setores e Agentes Internos) */}
-        <motion.div 
-          className="relative w-full h-full"
-          animate={{ rotate: rotation }}
-          transition={{ type: "spring", stiffness: 40, damping: 15 }}
+      {/* TOGGLE MODO DE VISÃO */}
+      <div className="flex bg-slate-900/50 p-1 rounded-full border border-slate-800 backdrop-blur-sm z-30">
+        <button
+          onClick={() => setViewMode('IMPACT')}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full text-xs font-bold transition-all uppercase tracking-wider ${viewMode === 'IMPACT' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" : "text-slate-500 hover:text-emerald-400"
+            }`}
         >
-          {/* SVG do Motor */}
-          <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-2xl">
-            {/* Atrair */}
-            <path d="M 50 50 L 50 5 A 45 45 0 0 1 89 27.5 Z" fill="#5D7A93" className="opacity-90 transition-opacity hover:opacity-100 cursor-pointer" />
-            {/* Engajar */}
-            <path d="M 50 50 L 11 27.5 A 45 45 0 0 1 50 5 Z" fill="#E5E7EB" className="cursor-pointer" />
-            {/* Encantar */}
-            <path d="M 50 50 L 89 27.5 A 45 45 0 0 1 11 27.5 Z" fill="#71717A" className="cursor-pointer" />
-          </svg>
-
-          {/* Agentes Posicionados no Motor (Eles giram junto) */}
-          <AgentNode 
-            id="agent-alice" 
-            name="Alice" 
-            top="15%" left="65%" 
-            isActive={selectedAgentId === 'agent-alice'}
-            onClick={() => handleAgentClick('agent-alice', 'ATRAIR')}
-            rotationCorrection={-rotation}
-          />
-          <AgentNode 
-            id="agent-luis" 
-            name="Luís" 
-            top="15%" left="35%" 
-            isActive={selectedAgentId === 'agent-luis'}
-            onClick={() => handleAgentClick('agent-luis', 'ENGAJAR')}
-            rotationCorrection={-rotation}
-          />
-          <div className="absolute bottom-[12%] left-1/2 -translate-x-1/2 flex gap-8">
-            <AgentNode 
-              id="agent-angela" 
-              name="Ângela" 
-              isActive={selectedAgentId === 'agent-angela'}
-              onClick={() => handleAgentClick('agent-angela', 'ENCANTAR')}
-              rotationCorrection={-rotation}
-              staticPos
-            />
-            <AgentNode 
-              id="agent-vitor" 
-              name="Vitor" 
-              isActive={selectedAgentId === 'agent-vitor'}
-              onClick={() => handleAgentClick('agent-vitor', 'ENCANTAR')}
-              rotationCorrection={-rotation}
-              staticPos
-            />
-          </div>
-        </motion.div>
-
-        {/* NÚCLEO CENTRAL (Estatico) */}
-        <div className="absolute z-50 w-36 h-36 rounded-full bg-gradient-to-b from-slate-100 to-slate-300 border-[6px] border-slate-200 shadow-xl flex flex-col items-center justify-center text-center p-4">
-          <span className="text-[10px] font-bold text-slate-400 tracking-widest leading-none">OTTO</span>
-          <div className="w-10 h-[1px] bg-slate-300 my-1.5" />
-          <span className="text-xs font-black text-slate-700 uppercase italic leading-tight">Sales Pilot</span>
-        </div>
-
-        {/* FERNANDA (Externa - Re-engajar) */}
-        <div className="absolute -right-20 top-1/2 -translate-y-1/2">
-            <AgentNode 
-              id="agent-fernanda" 
-              name="Fernanda" 
-              isActive={selectedAgentId === 'agent-fernanda'}
-              onClick={() => handleAgentClick('agent-fernanda')}
-              rotationCorrection={0}
-              isExternal
-            />
-        </div>
+          <Activity className="w-3 h-3" /> Impacto (Eficiência)
+        </button>
+        <button
+          onClick={() => setViewMode('RISK')}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full text-xs font-bold transition-all uppercase tracking-wider ${viewMode === 'RISK' ? "bg-rose-600 text-white shadow-lg shadow-rose-900/20" : "text-slate-500 hover:text-rose-400"
+            }`}
+        >
+          <AlertTriangle className="w-3 h-3" /> Risco (Gargalos)
+        </button>
       </div>
 
-      {/* PAINEL DE DETALHES (Framer Motion Slide-up) */}
-      <div className="w-full max-w-4xl px-4">
+      {/* SYSTEMIC MATRIX */}
+      <div className="w-full max-w-5xl px-4">
+        <SystemicMatrix
+          mode={viewMode}
+          impactData={matrixData.impactRows}
+          riskData={matrixData.riskRows}
+        />
+      </div>
+
+      {/* PAINEL DE DETALHES OU MAPA DE PROCESSO */}
+      <div className="w-full max-w-6xl px-4">
         <AnimatePresence mode="wait">
           {selectedAgent ? (
-            <motion.div
-              key={selectedAgentId}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="w-full"
-            >
-              <Card className="border-2 border-slate-200 dark:border-slate-800 shadow-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 border-b">
+            <motion.div key={selectedAgentId} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <Card className="border-2 border-slate-200 dark:border-slate-800 shadow-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur relative">
+                {/* BACK BUTTON */}
+                <button
+                  onClick={() => setSelectedAgentId(null)}
+                  className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors z-10"
+                >
+                  <X className="w-5 h-5 text-slate-500" />
+                </button>
+
+                <CardHeader className="flex flex-row items-center justify-between pb-6 border-b pr-16 bg-slate-50/50 dark:bg-slate-900/50">
                   <div className="flex items-center gap-4">
-                    <Avatar name={selectedAgent.nome || 'Agente'} size="lg" className="ring-4 ring-blue-500/20" />
+                    <Avatar name={selectedAgent.nome || ''} size="lg" className="ring-4 ring-blue-500/20" />
                     <div>
-                      <h2 className="text-2xl font-black text-slate-800 dark:text-white">{selectedAgent.nome}</h2>
+                      <h2 className="text-2xl font-black">{selectedAgent.nome}</h2>
                       <div className="flex gap-2 mt-1">
-                         <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase">Online</span>
-                         <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold uppercase italic">Shadow IA Ativa</span>
+                        <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase">Online</span>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold uppercase italic">Shadow IA Ativa</span>
                       </div>
                     </div>
                   </div>
-                  <Link 
-                    href={getAgentHref(selectedAgentId!)}
-                    className="flex items-center gap-2 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-2 rounded-full text-sm font-bold hover:scale-105 transition-transform"
-                  >
+                  <Link href={getAgentHref(selectedAgentId!)} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-full text-sm font-bold hover:scale-105 transition-all">
                     Painel Completo <ChevronRight className="w-4 h-4" />
                   </Link>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
-                  {/* LUÍS - SDR Plantão */}
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
+
+                  {/* --- LUÍS (SDR / Plantão) --- */}
                   {selectedAgentId === 'agent-luis' && agentKpis.luis && (
                     <>
                       <MetricItem
@@ -296,28 +330,7 @@ export default function DashboardPage() {
                     </>
                   )}
 
-                  {/* ÂNGELA - Pós-Venda */}
-                  {selectedAgentId === 'agent-angela' && agentKpis.angela && (
-                    <>
-                      <MetricItem
-                        label="Total Atendimentos"
-                        value={agentKpis.angela.total_atendimentos}
-                        icon={<Users className="w-5 h-5 text-pink-500" />}
-                      />
-                      <MetricItem
-                        label="Sentimento Positivo"
-                        value={agentKpis.angela.sentimento_positivo}
-                        icon={<ThumbsUp className="w-5 h-5 text-green-500" />}
-                      />
-                      <MetricItem
-                        label="Problemas Detectados"
-                        value={agentKpis.angela.problemas_detectados}
-                        icon={<AlertTriangle className="w-5 h-5 text-amber-500" />}
-                      />
-                    </>
-                  )}
-
-                  {/* ALICE - BDR Outbound */}
+                  {/* --- ALICE (BDR / Prospecção) --- */}
                   {selectedAgentId === 'agent-alice' && agentKpis.alice && (
                     <>
                       <MetricItem
@@ -339,29 +352,51 @@ export default function DashboardPage() {
                     </>
                   )}
 
-                  {/* FERNANDA - Win-back */}
+                  {/* --- FERNANDA (Recuperação de Vendas) --- */}
                   {selectedAgentId === 'agent-fernanda' && agentKpis.fernanda && (
                     <>
                       <MetricItem
-                        label="Base Total"
+                        label="Base para Reativar"
                         value={agentKpis.fernanda.base_total}
-                        icon={<Users className="w-5 h-5 text-orange-500" />}
+                        icon={<RefreshCw className="w-5 h-5 text-slate-500" />}
                       />
                       <MetricItem
-                        label="Com Intenção"
-                        value={agentKpis.fernanda.com_intencao}
-                        icon={<Target className="w-5 h-5 text-green-500" />}
+                        label="Com Intenção Real"
+                        value={agentKpis.fernanda.com_intencao || 0}
+                        icon={<Target className="w-5 h-5 text-green-600" />}
                         highlight
                       />
                       <MetricItem
-                        label="Intervenções"
+                        label="Intervenções Humanas"
                         value={agentKpis.fernanda.intervencoes}
                         icon={<AlertTriangle className="w-5 h-5 text-amber-500" />}
                       />
                     </>
                   )}
 
-                  {/* VITOR - Cobrança */}
+                  {/* --- ÂNGELA (Pós-Venda / CS) --- */}
+                  {selectedAgentId === 'agent-angela' && agentKpis.angela && (
+                    <>
+                      <MetricItem
+                        label="Total Atendimentos"
+                        value={agentKpis.angela.total_atendimentos}
+                        icon={<MessageSquare className="w-5 h-5 text-blue-500" />}
+                      />
+                      <MetricItem
+                        label="Clientes Satisfeitos"
+                        value={agentKpis.angela.sentimento_positivo}
+                        icon={<ThumbsUp className="w-5 h-5 text-green-500" />}
+                        highlight
+                      />
+                      <MetricItem
+                        label="Problemas Detectados"
+                        value={agentKpis.angela.problemas_detectados}
+                        icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+                      />
+                    </>
+                  )}
+
+                  {/* --- VITOR (Fechamento / Kanban) --- */}
                   {selectedAgentId === 'agent-vitor' && agentKpis.vitor && (
                     <>
                       <MetricItem
@@ -370,46 +405,30 @@ export default function DashboardPage() {
                         icon={<Users className="w-5 h-5 text-blue-500" />}
                       />
                       <MetricItem
-                        label="Clientes Recuperados"
+                        label="Recuperados (Kanban)"
                         value={agentKpis.vitor.clientes_recuperados}
-                        icon={<Target className="w-5 h-5 text-green-500" />}
+                        icon={<CheckCircle2 className="w-5 h-5 text-green-500" />}
                         highlight
                       />
                       <MetricItem
                         label="Receita Recuperada"
                         value={formatCurrency(agentKpis.vitor.receita_recuperada)}
-                        icon={<DollarSign className="w-5 h-5 text-green-600" />}
+                        icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
                       />
                     </>
                   )}
 
-                  {/* Fallback genérico se não tiver KPIs específicos */}
-                  {!agentKpis[selectedAgentId?.replace('agent-', '') as keyof AgentKpiData] && (
-                    <>
-                      <MetricItem
-                        label="Leads em Gestão"
-                        value={selectedAgent.leads?.length || 0}
-                        icon={<Users className="w-5 h-5 text-blue-500" />}
-                      />
-                      <MetricItem
-                        label="Receita Gerada"
-                        value={formatCurrency(Number(selectedAgent.metricas_agregadas?.receita_gerada || 0))}
-                        icon={<DollarSign className="w-5 h-5 text-green-500" />}
-                      />
-                      <MetricItem
-                        label="Eficiência de Conversão"
-                        value={`${((selectedAgent.leads?.filter((l: any) => l.status === 'GANHO').length || 0) / (selectedAgent.leads?.length || 1) * 100).toFixed(1)}%`}
-                        icon={<Target className="w-5 h-5 text-purple-500" />}
-                      />
-                    </>
-                  )}
                 </CardContent>
               </Card>
             </motion.div>
           ) : (
-            <div className="text-center p-12 border-2 border-dashed border-slate-200 rounded-3xl">
-              <MousePointer2 className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-              <p className="text-slate-400 font-medium">Selecione um agente no motor para ver as métricas</p>
+            <div className="w-full pb-6">
+              {/* Agent Process Flow Map */}
+              <AgentProcessMap
+                agents={agents}
+                kpis={agentKpis}
+                onSelectAgent={handleAgentClick}
+              />
             </div>
           )}
         </AnimatePresence>
@@ -418,53 +437,25 @@ export default function DashboardPage() {
   );
 }
 
-// Sub-componente para os Nodes dos Agentes
-function AgentNode({ name, top, left, isActive, onClick, rotationCorrection, staticPos, isExternal }: any) {
+function MetricItem({ label, value, icon, highlight }: any) {
   return (
-    <motion.div 
-      className="absolute z-40 cursor-pointer"
-      style={!staticPos ? { top, left } : { position: 'relative' }}
-      animate={{ rotate: rotationCorrection }} // Corrige a rotação do texto/avatar para ficarem sempre "de pé"
-      whileHover={{ scale: 1.1 }}
-      onClick={onClick}
-    >
-      <div className="flex flex-col items-center">
-        <div className={`relative p-1 rounded-full transition-all duration-300 ${isActive ? 'ring-4 ring-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'hover:ring-2 hover:ring-slate-300'}`}>
-          <Avatar name={name} size={isActive ? "lg" : "md"} className="bg-white" />
-          {isActive && (
-            <motion.div 
-              layoutId="active-glow" 
-              className="absolute inset-0 rounded-full border-2 border-blue-500" 
-              transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-            />
-          )}
-        </div>
-        <span className={`mt-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${isActive ? 'bg-blue-600 text-white' : 'bg-white/90 text-slate-600 shadow-sm'}`}>
-          {name}
-        </span>
-        {isExternal && <span className="text-[8px] font-bold text-slate-400 mt-1 italic tracking-tighter">Re-engajar</span>}
-      </div>
-    </motion.div>
-  );
-}
-
-function MetricItem({ label, value, icon, highlight }: { label: string, value: string | number, icon: React.ReactNode, highlight?: boolean }) {
-  return (
-    <div className={`p-4 rounded-2xl border ${highlight
-      ? 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800'
-      : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800'
-    }`}>
+    <div className={`p-4 rounded-2xl border ${highlight ? 'bg-green-50 border-green-200 dark:bg-green-900/20' : 'bg-slate-50 border-slate-100'}`}>
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <span className={`text-[10px] font-bold uppercase tracking-wider ${highlight ? 'text-green-700 dark:text-green-400' : 'text-slate-500'}`}>{label}</span>
+        <span className={`text-[10px] font-bold uppercase tracking-wider ${highlight ? 'text-green-700' : 'text-slate-500'}`}>{label}</span>
       </div>
-      <div className={`text-2xl font-black ${highlight ? 'text-green-700 dark:text-green-400' : 'text-slate-900 dark:text-white'}`}>{value}</div>
+      <div className={`text-2xl font-black ${highlight ? 'text-green-700' : 'text-slate-900'}`}>{value}</div>
     </div>
   );
 }
 
-function MousePointer2(props: any) {
-    return (
-      <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/><path d="M13 13l6 6"/></svg>
-    )
+function getAgentHref(agentId: string): string {
+  switch (agentId) {
+    case 'agent-luis': return '/luis';
+    case 'agent-alice': return '/alice';
+    case 'agent-fernanda': return '/fernanda';
+    case 'agent-angela': return '/angela';
+    case 'agent-vitor': return '/kanban'; // Vitor geralmente cuida do Kanban/Fechamento
+    default: return '/dashboard';
+  }
 }

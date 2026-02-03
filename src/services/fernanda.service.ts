@@ -18,344 +18,216 @@ function toStr(v: unknown): string | undefined {
   return String(v);
 }
 
+// Helper para obter o cliente
+function getClient(agentId: string = 'agent-fernanda') {
+  const cfg = getTenantConfig(agentId);
+  return getBrowserTenantClient(agentId, cfg);
+}
+
 // ============================================================================
-// FUNÇÕES RPC - ENDPOINTS DO DASHBOARD FERNANDA
+// FUNÇÕES - IMPLEMENTAÇÃO DIRETA (SEM RPC)
 // ============================================================================
 
-/**
- * Busca as métricas do Funil de Conversão da Fernanda via RPC.
- *
- * Endpoint: rpc/get_fernanda_kpi_funnel (POST)
- *
- * @returns Objeto com as métricas do funil ou null em caso de erro
- *
- * @example
- * const metrics = await getFernandaFunnelMetrics();
- * if (metrics) {
- *   console.log(`Base Total: ${metrics.base_total}`);
- *   console.log(`Válidos: ${metrics.validos}`);
- *   console.log(`Com Intenção: ${metrics.com_intencao}`);
- *   console.log(`Intervenções: ${metrics.intervencoes}`);
- * }
- */
 export async function getFernandaFunnelMetrics(): Promise<FernandaFunnelKPI | null> {
   try {
-    // Obter configuração e cliente Supabase para a Fernanda
-    const cfg = getTenantConfig('agent-fernanda');
-    const sb = getBrowserTenantClient('agent-fernanda', cfg);
+    const sb = getClient();
 
-    // Chamar a função RPC do Supabase
-    // POST https://<supabase_url>/rest/v1/rpc/get_fernanda_kpi_funnel
-    const { data, error } = await sb.rpc('get_fernanda_kpi_funnel');
+    // Buscar todos os leads para contagem (idealmente seria count(), mas para MVP vamos de select com head false ou limit)
+    // Supabase count é eficiente.
 
-    // Tratamento de erro do Supabase
-    if (error) {
-      console.error('[Fernanda FunnelKPI] Erro ao buscar métricas:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-      return null;
-    }
+    const { count: baseTotal, error: errBase } = await sb
+      .from('leads_nao_convertidos_fase02')
+      .select('*', { count: 'exact', head: true })
+      .eq('VENDEDOR', 'Fernanda');
 
-    // Validação básica do retorno
-    if (!data) {
-      console.warn('[Fernanda FunnelKPI] Retorno vazio do RPC');
-      return null;
-    }
+    const { count: validos, error: errValidos } = await sb
+      .from('leads_nao_convertidos_fase02')
+      .select('*', { count: 'exact', head: true })
+      .eq('VENDEDOR', 'Fernanda')
+      .eq('CONTATADO', 'Sim');
 
-    // O retorno já é o objeto, não precisa de map
-    return data as FernandaFunnelKPI;
+    // Com intenção: leads onde INTENCAO não é nulo/vazio e não é 'Indefinido'/'Sem Interesse'
+    // Como SQL filter complexo pode ser chato, vamos pegar os leads contatados e filtrar, ou usar um filtro aproximado
+    // Vamos usar lógica simplificada no query builder
+    const { count: comIntencao, error: errIntencao } = await sb
+      .from('leads_nao_convertidos_fase02')
+      .select('*', { count: 'exact', head: true })
+      .eq('VENDEDOR', 'Fernanda')
+      .neq('INTENCAO', null)
+      .neq('INTENCAO', 'Indefinido')
+      .neq('INTENCAO', 'Sem Interesse');
+
+    // Intervenções: Tabela intervencao_humana
+    const { count: intervencoes, error: errIntervencoes } = await sb
+      .from('intervencao_humana')
+      .select('*', { count: 'exact', head: true });
+
+    if (errBase) throw errBase;
+
+    return {
+      base_total: baseTotal || 0,
+      validos: validos || 0,
+      com_intencao: comIntencao || 0,
+      intervencoes: intervencoes || 0
+    };
   } catch (err) {
-    console.error('[Fernanda FunnelKPI] Erro inesperado:', err);
+    console.error('[Fernanda FunnelKPI] Erro:', err);
     return null;
   }
 }
 
-/**
- * Busca a lista de oportunidades (leads) da Fernanda via RPC.
- *
- * Endpoint: rpc/get_fernanda_lead_list (POST)
- *
- * NOTA DE UI - ORDENAÇÃO JÁ APLICADA PELO BANCO:
- * ┌─────────────────────────────────────────────────────────────┐
- * │ 1º: Leads que precisam de atenção (precisa_atencao = true)  │
- * │     → Exibir com Badge VERMELHO (Erro/Intervenção)          │
- * │ 2º: Leads com intenção preenchida                           │
- * │     → Exibir com Badge VERDE/AZUL conforme tipo             │
- * │ 3º: Leads mais recentes (created_at DESC)                   │
- * │     → Ordenação padrão para os demais                       │
- * └─────────────────────────────────────────────────────────────┘
- *
- * @returns Array de leads ordenados ou null em caso de erro
- *
- * @example
- * const leads = await getFernandaLeadList();
- * if (leads) {
- *   leads.forEach(lead => {
- *     if (lead.precisa_atencao) {
- *       // Renderizar com alerta vermelho
- *     }
- *   });
- * }
- */
 export async function getFernandaLeadList(): Promise<FernandaLead[] | null> {
   try {
-    // Obter configuração e cliente Supabase para a Fernanda
-    const cfg = getTenantConfig('agent-fernanda');
-    const sb = getBrowserTenantClient('agent-fernanda', cfg);
+    const sb = getClient();
 
-    // Chamar a função RPC do Supabase
-    // POST https://<supabase_url>/rest/v1/rpc/get_fernanda_lead_list
-    const { data, error } = await sb.rpc('get_fernanda_lead_list');
+    // Buscar leads recentes
+    const { data, error } = await sb
+      .from('leads_nao_convertidos_fase02')
+      .select('id, created_at, nome, whatsapp, VEICULO, INTENCAO, last_message_ia, last_message_lead, sessionId, CONTATADO')
+      .eq('VENDEDOR', 'Fernanda')
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-    // Tratamento de erro do Supabase
-    if (error) {
-      console.error('[Fernanda LeadList] Erro ao buscar lista de leads:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-      return null;
-    }
+    if (error) throw error;
+    if (!data) return [];
 
-    // Validação básica do retorno
-    if (!data) {
-      console.warn('[Fernanda LeadList] Retorno vazio do RPC');
-      return [];
-    }
+    return data.map((row: any) => {
+      const intencao = row.INTENCAO || 'Indefinido';
+      const precisaAtencao = !row.CONTATADO && (new Date().getTime() - new Date(row.created_at).getTime()) > 86400000; // Exemplo: > 24h sem contato
 
-    // O retorno já é um array ordenado pelo banco
-    return data as FernandaLead[];
+      return {
+        id: row.id,
+        nome: row.nome || 'Sem Nome',
+        whatsapp: row.whatsapp,
+        veiculo: row.VEICULO,
+        intencao: intencao,
+        precisa_atencao: precisaAtencao,
+        ultima_interacao: row.last_message_ia || row.last_message_lead || row.created_at,
+        session_id: row.sessionId || '',
+        created_at: row.created_at
+      };
+    }).sort((a, b) => {
+      // Ordenação customizada no cliente
+      if (a.precisa_atencao && !b.precisa_atencao) return -1;
+      if (!a.precisa_atencao && b.precisa_atencao) return 1;
+      if (a.intencao !== 'Indefinido' && b.intencao === 'Indefinido') return -1;
+      return 0; // Mantém ordem de data
+    });
+
   } catch (err) {
-    console.error('[Fernanda LeadList] Erro inesperado:', err);
+    console.error('[Fernanda LeadList] Erro:', err);
     return null;
   }
 }
 
-/**
- * Busca a timeline de atividade (volume de conversas por dia) da Fernanda via RPC.
- *
- * Endpoint: rpc/get_fernanda_activity_timeline (POST)
- *
- * NOTA PARA UI (Recharts):
- * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ • Use `dataKey="data"` no XAxis para eixo temporal                      │
- * │ • O banco retorna apenas dias COM atividade                             │
- * │ • Para gráfico contínuo, preencha gaps de datas no frontend:            │
- * │   - Itere do primeiro ao último dia retornado                           │
- * │   - Insira { data: 'YYYY-MM-DD', total_conversas: 0 } nos dias faltantes│
- * └─────────────────────────────────────────────────────────────────────────┘
- *
- * @returns Array de itens da timeline ordenados por data ou null em caso de erro
- *
- * @example
- * const timeline = await getFernandaActivityTimeline();
- * if (timeline) {
- *   // Usar com Recharts AreaChart ou BarChart
- *   <AreaChart data={timeline}>
- *     <XAxis dataKey="data" />
- *     <YAxis />
- *     <Area dataKey="total_conversas" />
- *   </AreaChart>
- * }
- */
 export async function getFernandaActivityTimeline(): Promise<FernandaTimelineItem[] | null> {
   try {
-    // Obter configuração e cliente Supabase para a Fernanda
-    const cfg = getTenantConfig('agent-fernanda');
-    const sb = getBrowserTenantClient('agent-fernanda', cfg);
+    const sb = getClient();
 
-    // Chamar a função RPC do Supabase
-    // POST https://<supabase_url>/rest/v1/rpc/get_fernanda_activity_timeline
-    const { data, error } = await sb.rpc('get_fernanda_activity_timeline');
+    // Agregação manual simplificada: Pegar ultimas 100 mensagens e agrupar por dia
+    const { data, error } = await sb
+      .from('chat_histories_fase_02')
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(500); // Amostra maior
 
-    // Tratamento de erro do Supabase
-    if (error) {
-      console.error('[Fernanda Timeline] Erro ao buscar timeline de atividade:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-      return null;
-    }
+    if (error) throw error;
 
-    // Validação básica do retorno
-    if (!data || !Array.isArray(data)) {
-      console.warn('[Fernanda Timeline] Retorno vazio ou inválido do RPC');
-      return [];
-    }
+    const countByDate: Record<string, number> = {};
+    data?.forEach((row: any) => {
+      const date = new Date(row.created_at).toISOString().split('T')[0];
+      countByDate[date] = (countByDate[date] || 0) + 1;
+    });
 
-    // Garantir que total_conversas seja numérico
-    const normalizedData: FernandaTimelineItem[] = data.map((item: Record<string, unknown>) => ({
-      data: String(item.data ?? ''),
-      total_conversas: Number(item.total_conversas) || 0,
-    }));
+    return Object.entries(countByDate).map(([date, count]) => ({
+      data: date,
+      total_conversas: count
+    })).sort((a, b) => a.data.localeCompare(b.data));
 
-    return normalizedData;
   } catch (err) {
-    console.error('[Fernanda Timeline] Erro inesperado:', err);
+    console.error('[Fernanda Timeline] Erro:', err);
     return null;
   }
 }
 
-/**
- * Busca a distribuição de intenções de compra dos leads da Fernanda via RPC.
- *
- * Endpoint: rpc/get_fernanda_intent_distribution (POST)
- *
- * NOTA PARA UI (Cores sugeridas para PieChart/BarChart):
- * ┌────────────────────────────────────────────────────────────┐
- * │ QUENTES (Verde/Azul): "Compra Imediata", "Negociando"      │
- * │ MORNAS (Amarelo/Laranja): "Pesquisando", "Interessado"     │
- * │ FRIAS (Cinza): "Sem Interesse", "Indefinido", null         │
- * └────────────────────────────────────────────────────────────┘
- *
- * Nomes longos de intenção serão tratados pelo componente visual (truncate).
- *
- * @returns Array de estatísticas por intenção ou null em caso de erro
- *
- * @example
- * const distribution = await getFernandaIntentDistribution();
- * if (distribution) {
- *   // Usar com Recharts PieChart
- *   <PieChart>
- *     <Pie data={distribution} dataKey="total" nameKey="intencao" />
- *   </PieChart>
- * }
- */
 export async function getFernandaIntentDistribution(): Promise<FernandaIntentStat[] | null> {
   try {
-    // Obter configuração e cliente Supabase para a Fernanda
-    const cfg = getTenantConfig('agent-fernanda');
-    const sb = getBrowserTenantClient('agent-fernanda', cfg);
+    const sb = getClient();
 
-    // Chamar a função RPC do Supabase
-    // POST https://<supabase_url>/rest/v1/rpc/get_fernanda_intent_distribution
-    const { data, error } = await sb.rpc('get_fernanda_intent_distribution');
+    // Buscar intents de todos os leads da Fernanda
+    // Nota: Se a base for grande, isso deveria ser RPC, mas para MVP vamos puxar os últimos 200
+    const { data, error } = await sb
+      .from('leads_nao_convertidos_fase02')
+      .select('INTENCAO')
+      .eq('VENDEDOR', 'Fernanda')
+      .limit(500);
 
-    // Tratamento de erro do Supabase
-    if (error) {
-      console.error('[Fernanda IntentDistribution] Erro ao buscar distribuição:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-      return null;
-    }
+    if (error) throw error;
 
-    // Validação básica do retorno
-    if (!data || !Array.isArray(data)) {
-      console.warn('[Fernanda IntentDistribution] Retorno vazio ou inválido do RPC');
-      return [];
-    }
+    const counts: Record<string, number> = {};
+    data?.forEach((row: any) => {
+      const intent = row.INTENCAO || 'Indefinido';
+      counts[intent] = (counts[intent] || 0) + 1;
+    });
 
-    // Normalizar dados garantindo tipos corretos
-    const normalizedData: FernandaIntentStat[] = data.map((item: Record<string, unknown>) => ({
-      intencao: String(item.intencao ?? 'Indefinido'),
-      total: Number(item.total) || 0,
+    return Object.entries(counts).map(([intencao, total]) => ({
+      intencao,
+      total
     }));
 
-    return normalizedData;
   } catch (err) {
-    console.error('[Fernanda IntentDistribution] Erro inesperado:', err);
+    console.error('[Fernanda IntentDistribution] Erro:', err);
     return null;
   }
 }
 
-/**
- * Busca os dados de governança e saúde técnica da Fernanda via RPC.
- *
- * Endpoint: rpc/get_fernanda_governance (POST)
- *
- * REGRAS DE ALERTA PARA UI:
- * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ fila_pendente > 10                                                      │
- * │   → ALERTA AMARELO (Warning)                                            │
- * │   → Mensagem: "Sistema lento - Fila de mensagens represada"             │
- * │   → Ícone: ⚠️ ou AlertTriangle                                          │
- * │                                                                         │
- * │ taxa_intervencao > 5                                                    │
- * │   → ALERTA VERMELHO (Critical)                                          │
- * │   → Mensagem: "IA falhando muito com clientes da Fernanda"              │
- * │   → Ícone: 🚨 ou AlertCircle                                            │
- * │                                                                         │
- * │ ultimos_erros.length > 0                                                │
- * │   → Exibir badge com contagem                                           │
- * │   → Permitir expandir drawer/modal com detalhes                         │
- * └─────────────────────────────────────────────────────────────────────────┘
- *
- * @returns Dados de governança ou null em caso de erro
- *
- * @example
- * const governance = await getFernandaGovernance();
- * if (governance) {
- *   if (governance.fila_pendente > 10) {
- *     showWarning('Sistema lento');
- *   }
- *   if (governance.taxa_intervencao > 5) {
- *     showCritical('IA falhando muito');
- *   }
- * }
- */
 export async function getFernandaGovernance(): Promise<FernandaGovernanceData | null> {
   try {
-    // Obter configuração e cliente Supabase para a Fernanda
-    const cfg = getTenantConfig('agent-fernanda');
-    const sb = getBrowserTenantClient('agent-fernanda', cfg);
+    const sb = getClient();
 
-    // Chamar a função RPC do Supabase
-    // POST https://<supabase_url>/rest/v1/rpc/get_fernanda_governance
-    const { data, error } = await sb.rpc('get_fernanda_governance');
+    // Fila pendente (exemplo: mensagens em buffer ou leads sem contato)
+    const { count: filaPendente } = await sb
+      .from('leads_nao_convertidos_fase02')
+      .select('*', { count: 'exact', head: true })
+      .eq('VENDEDOR', 'Fernanda')
+      .eq('CONTATADO', 'Não'); // Assumindo 'Não' como pendente
 
-    // Tratamento de erro do Supabase
-    if (error) {
-      console.error('[Fernanda Governance] Erro ao buscar dados de governança:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-      return null;
-    }
+    // Taxa Intervenção (calculado sobre base total ou 100 ultimos)
+    const { count: intervencoes } = await sb.from('intervencao_humana').select('*', { count: 'exact', head: true });
+    // Pegar total de conversas para calcular taxa
+    const { count: totalConversas } = await sb.from('chat_histories_fase_02').select('*', { count: 'exact', head: true });
 
-    // Validação básica do retorno
-    if (!data) {
-      console.warn('[Fernanda Governance] Retorno vazio do RPC');
-      return null;
-    }
+    const taxa = totalConversas ? (intervencoes! / totalConversas) * 100 : 0;
 
-    // Normalizar dados garantindo tipos corretos
-    const rawData = data as Record<string, unknown>;
+    // Últimos erros (Curadoria com falha)
+    const { data: erros } = await sb
+      .from('curadoria')
+      .select('id, created_at, message_ai, internal_reasoning')
+      .not('internal_reasoning', 'is', null) // Assumindo que erros têm reasoning
+      .order('created_at', { ascending: false })
+      .limit(5);
 
-    // Normalizar array de erros
-    const rawErrors = Array.isArray(rawData.ultimos_erros) ? rawData.ultimos_erros : [];
-    const normalizedErrors: FernandaErrorLog[] = rawErrors.map((err: Record<string, unknown>) => ({
-      id: Number(err.id) || 0,
-      created_at: String(err.created_at ?? new Date().toISOString()),
-      message_ai: err.message_ai != null ? String(err.message_ai) : null,
-      internal_reasoning: err.internal_reasoning ?? null,
+    const normalizedErrors: FernandaErrorLog[] = (erros || []).map((e: any) => ({
+      id: e.id,
+      created_at: e.created_at,
+      message_ai: e.message_ai,
+      internal_reasoning: e.internal_reasoning
     }));
 
-    const normalizedData: FernandaGovernanceData = {
-      fila_pendente: Number(rawData.fila_pendente) || 0,
-      taxa_intervencao: Number(rawData.taxa_intervencao) || 0,
-      ultimos_erros: normalizedErrors,
+    return {
+      fila_pendente: filaPendente || 0,
+      taxa_intervencao: taxa,
+      ultimos_erros: normalizedErrors
     };
 
-    return normalizedData;
   } catch (err) {
-    console.error('[Fernanda Governance] Erro inesperado:', err);
+    console.error('[Fernanda Governance] Erro:', err);
     return null;
   }
 }
 
 // ============================================================================
-// FUNÇÕES AUXILIARES DE FETCH
+// FUNÇÕES LEGADO / GET AGENT
 // ============================================================================
 
 async function fetchFernandaData(sb: SupabaseClient) {
@@ -405,10 +277,6 @@ async function fetchFernandaData(sb: SupabaseClient) {
   ]);
 
   if (leadsRes.error) throw new Error(`leads_nao_convertidos_fase02: ${leadsRes.error.message}`);
-  if (memoriaRes.error) console.warn(`memoria (non-critical): ${memoriaRes.error.message}`);
-  if (chatRes.error) console.warn(`chat_histories_fase_02 (non-critical): ${chatRes.error.message}`);
-  if (intervencaoRes.error) console.warn(`intervencao_humana (non-critical): ${intervencaoRes.error.message}`);
-  if (curadoriaRes.error) console.warn(`curadoria (non-critical): ${curadoriaRes.error.message}`);
 
   return {
     leads: (leadsRes.data ?? []) as Record<string, any>[],
@@ -441,7 +309,6 @@ function normalizeLead(row: Record<string, any>, agentId: string): Lead {
   const veiculo = toStr(row.VEICULO) || '';
   let valorPotencial = 0;
   if (veiculo) {
-    // Estimativa simples baseada em palavras-chave
     if (veiculo.toLowerCase().includes('suv') || veiculo.toLowerCase().includes('hilux')) {
       valorPotencial = 150000 + Math.random() * 100000;
     } else if (veiculo.toLowerCase().includes('sedan') || veiculo.toLowerCase().includes('corolla')) {
@@ -519,7 +386,6 @@ export const fernandaService: AgentService = {
       c.internal_reasoning && typeof c.internal_reasoning === 'string' && c.internal_reasoning.length > 50
     ).length;
 
-    // Log summary
     console.log(`[Fernanda] Leads: ${leads.length}, Taxa Reconversão: ${taxaReconversao.toFixed(1)}%, ` +
       `Leads Reabertos: ${leadsReabertos}, Intervenções: ${intervencoes}, Analisados: ${leadsAnalisados}`);
 
