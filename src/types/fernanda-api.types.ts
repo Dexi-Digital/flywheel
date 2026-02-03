@@ -77,6 +77,26 @@ export type FernandaTimelineItem = FernandaActivityEvent; // Manter compatibilid
 export type FernandaActivityTimelineResponse = FernandaActivityEvent[];
 
 /**
+ * Alerta de atendimento da Fernanda.
+ * Resposta do Edge Function recent-alerts.
+ */
+export interface FernandaAlert {
+  /** ID único do alerta */
+  id: number;
+  /** Data/hora do alerta (ISO Date) */
+  created_at: string;
+  /** Session ID relacionado ao alerta */
+  sessionId: string;
+  /** Mensagem do alerta */
+  alerta: string;
+}
+
+/** Resposta do Edge Function recent-alerts */
+export interface FernandaAlertsResponse {
+  alerts: FernandaAlert[];
+}
+
+/**
  * Item da distribuição de intenções da Fernanda.
  * Resposta do endpoint RPC get_fernanda_intent_distribution.
  *

@@ -8,14 +8,6 @@ import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from 'recharts';
-import {
   Users,
   Target,
   AlertTriangle,
@@ -23,7 +15,6 @@ import {
   CheckCircle2,
   Clock,
   MessageSquare,
-  TrendingUp,
   Inbox,
   ShieldAlert,
   PhoneOff,
@@ -37,7 +28,7 @@ import {
   getFernandaFunnelMetrics,
   getFernandaLeadList,
   getFernandaActivityFeed,
-  getFernandaIntentDistribution,
+  getRecentAlerts,
   getFernandaGovernance,
 } from '@/services/fernanda.service';
 
@@ -46,21 +37,11 @@ import type {
   FernandaFunnelKPI,
   FernandaLead,
   FernandaActivityEvent,
-  FernandaIntentStat,
+  FernandaAlert,
   FernandaGovernanceData,
 } from '@/types/fernanda-api.types';
 
-// Mapeamento de cores para intenções
-const INTENT_COLORS: Record<string, string> = {
-  'Compra Imediata': '#22c55e',
-  'Negociando': '#3b82f6',
-  'Pesquisando': '#eab308',
-  'Interessado': '#f97316',
-  'Sem Interesse': '#6b7280',
-  'Indefinido': '#9ca3af',
-  'Indefinido / Sem Resposta': '#9ca3af',
-};
-const DEFAULT_INTENT_COLOR = '#9ca3af';
+
 
 // Thresholds de governança
 const GOVERNANCE_THRESHOLDS = {
@@ -98,7 +79,7 @@ export default function FernandaPage() {
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedDate, setFeedDate] = useState<number>(Date.now()); // Para forçar refresh apenas do feed
 
-  const [intentStats, setIntentStats] = useState<FernandaIntentStat[]>([]);
+  const [alerts, setAlerts] = useState<FernandaAlert[]>([]);
   const [governanceData, setGovernanceData] = useState<FernandaGovernanceData | null>(null);
 
   // Estados do BrainDrawer
@@ -115,15 +96,15 @@ export default function FernandaPage() {
   const loadDashboard = useCallback(async () => {
     try {
       setError(null);
-      const [funnel, leads, intent, governance] = await Promise.all([
+      const [funnel, leads, alertsData, governance] = await Promise.all([
         getFernandaFunnelMetrics(),
         getFernandaLeadList(),
-        getFernandaIntentDistribution(),
+        getRecentAlerts(),
         getFernandaGovernance(),
       ]);
       setFunnelData(funnel);
       setLeadList(leads || []);
-      setIntentStats(intent || []);
+      setAlerts(alertsData || []);
       setGovernanceData(governance);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dashboard');
@@ -216,17 +197,13 @@ export default function FernandaPage() {
     ? [
       { stage: 'Carteira (Base Total)', value: funnelData.base_total, fill: '#94a3b8', icon: Users },
       // { stage: 'WhatsApp Válido', value: funnelData.validos, fill: '#3b82f6', icon: CheckCircle2 }, // REMOVIDO
-      { stage: 'Com Intenção Real', value: funnelData.com_intencao, fill: '#22c55e', icon: TrendingUp },
+      { stage: 'Com Intenção Real', value: funnelData.com_intencao, fill: '#22c55e', icon: Target },
       { stage: 'Intervenção Humana', value: funnelData.intervencoes, fill: '#f97316', icon: PhoneOff },
     ]
     : [];
   const maxFunnelValue = funnelStages.length ? Math.max(...funnelStages.map((d) => d.value), 1) : 1;
 
-  // Dados para PieChart de intenções
-  const intentChartData = intentStats.map((item) => ({
-    ...item,
-    fill: INTENT_COLORS[item.intencao] || DEFAULT_INTENT_COLOR,
-  }));
+
 
   // Thresholds de governança
   const filaPendente = governanceData?.fila_pendente ?? 0;
@@ -333,44 +310,50 @@ export default function FernandaPage() {
           </CardContent>
         </Card>
 
-        {/* Distribuição de Intenção */}
-        <Card className="h-[500px]">
+        {/* Alertas Recentes */}
+        <Card className="flex flex-col h-[500px]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-green-600" />
-              Distribuição de Intenção
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Alertas Recentes de Atendimento
             </CardTitle>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Classificação da IA por intenção de compra
+              Situações que requerem atenção imediata
             </p>
           </CardHeader>
-          <CardContent>
-            {intentChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={intentChartData}
-                    dataKey="total"
-                    nameKey="intencao"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={(props: { name?: string; percent?: number }) =>
-                      `${props.name || ''}: ${((props.percent ?? 0) * 100).toFixed(0)}%`
-                    }
-                    labelLine={false}
+          <CardContent className="flex-1 overflow-y-auto">
+            {alerts.length > 0 ? (
+              <div className="space-y-3">
+                {alerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4 hover:bg-amber-100/70 dark:hover:bg-amber-900/20 transition-colors cursor-pointer"
+                    onClick={() => handleLeadClick(alert.sessionId, alert.sessionId.split('@')[0])}
                   >
-                    {intentChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} leads`, '']} />
-                  <Legend verticalAlign="bottom" height={36} />
-                </PieChart>
-              </ResponsiveContainer>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {alert.sessionId.split('@')[0]}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                          {alert.alerta}
+                        </p>
+                      </div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true, locale: ptBR })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
-                Sem dados de intenção
+              <div className="flex h-full flex-col items-center justify-center text-gray-500 dark:text-gray-400">
+                <CheckCircle2 className="h-12 w-12 mb-3 opacity-20" />
+                <p>Nenhum alerta recente</p>
+                <p className="text-xs mt-1">Tudo funcionando normalmente</p>
               </div>
             )}
           </CardContent>
@@ -503,16 +486,16 @@ export default function FernandaPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Card Fila */}
             <div className={`rounded-lg border p-4 ${hasQueueWarning
-                ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10'
-                : 'border-gray-200 dark:border-gray-700'
+              ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10'
+              : 'border-gray-200 dark:border-gray-700'
               }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <Inbox className={`h-4 w-4 ${hasQueueWarning ? 'text-amber-600' : ''}`} />
                 Fila Pendente
               </div>
               <p className={`mt-2 text-2xl font-semibold ${hasQueueWarning
-                  ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-gray-900 dark:text-white'
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-gray-900 dark:text-white'
                 }`}>
                 {filaPendente}
               </p>
@@ -521,16 +504,16 @@ export default function FernandaPage() {
 
             {/* Card Taxa de Intervenção */}
             <div className={`rounded-lg border p-4 ${hasInterventionAlert
-                ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
-                : 'border-gray-200 dark:border-gray-700'
+              ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
+              : 'border-gray-200 dark:border-gray-700'
               }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <MessageSquare className={`h-4 w-4 ${hasInterventionAlert ? 'text-red-600' : ''}`} />
                 Taxa de Intervenção
               </div>
               <p className={`mt-2 text-2xl font-semibold ${hasInterventionAlert
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-gray-900 dark:text-white'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-gray-900 dark:text-white'
                 }`}>
                 {taxaIntervencao.toFixed(1)}%
               </p>
@@ -539,8 +522,8 @@ export default function FernandaPage() {
 
             {/* Card Erros */}
             <div className={`rounded-lg border p-4 ${(governanceData?.ultimos_erros?.length ?? 0) > 0
-                ? 'border-amber-200 dark:border-amber-800'
-                : 'border-gray-200 dark:border-gray-700'
+              ? 'border-amber-200 dark:border-amber-800'
+              : 'border-gray-200 dark:border-gray-700'
               }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <AlertTriangle className={`h-4 w-4 ${(governanceData?.ultimos_erros?.length ?? 0) > 0 ? 'text-amber-600' : ''}`} />

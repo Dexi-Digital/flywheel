@@ -11,6 +11,8 @@ import type {
   FernandaIntentStat,
   FernandaGovernanceData,
   FernandaErrorLog,
+  FernandaAlert,
+  FernandaAlertsResponse,
 } from '@/types/fernanda-api.types';
 
 function toStr(v: unknown): string | undefined {
@@ -175,6 +177,43 @@ export async function getFernandaGovernance(): Promise<FernandaGovernanceData | 
     return null;
   }
 }
+
+export async function getRecentAlerts(): Promise<FernandaAlert[] | null> {
+  try {
+    const cfg = getTenantConfig('agent-fernanda');
+
+    // Construir URL do Edge Function a partir da supabaseUrl
+    // Formato: https://<PROJECT_REF>.supabase.co/functions/v1/recent-alerts
+    const baseUrl = cfg.supabaseUrl.replace('/rest/v1', ''); // Remove /rest/v1 se presente
+    const edgeFunctionUrl = `${baseUrl}/functions/v1/recent-alerts`;
+
+    const response = await fetch(edgeFunctionUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${cfg.anonKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 502) {
+        console.error('[Fernanda Alerts] 502: Problema ao chamar REST API (verifique permissões RLS)');
+      } else if (response.status === 500) {
+        console.error('[Fernanda Alerts] 500: Variáveis de ambiente ausentes ou erro interno');
+      } else {
+        console.error(`[Fernanda Alerts] Erro HTTP ${response.status}`);
+      }
+      return null;
+    }
+
+    const data: FernandaAlertsResponse = await response.json();
+    return data.alerts || [];
+  } catch (err) {
+    console.error('[Fernanda Alerts] Erro inesperado:', err);
+    return null;
+  }
+}
+
 
 // ============================================================================
 // FUNÇÕES LEGADO / GET AGENT
