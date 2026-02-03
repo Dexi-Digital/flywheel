@@ -178,40 +178,37 @@ export async function getFernandaGovernance(): Promise<FernandaGovernanceData | 
   }
 }
 
-export async function getRecentAlerts(): Promise<FernandaAlert[] | null> {
+export async function getRecentAlerts(options: {
+  sessionId?: string | null;
+  limit?: number;
+  since?: string | null;
+} = {}): Promise<FernandaAlert[] | null> {
   try {
+    const { sessionId = null, limit = 50, since = null } = options;
     const cfg = getTenantConfig('agent-fernanda');
+    const sb = getBrowserTenantClient('agent-fernanda', cfg);
 
-    // Construir URL do Edge Function a partir da supabaseUrl
-    // Formato: https://<PROJECT_REF>.supabase.co/functions/v1/recent-alerts
-    const baseUrl = cfg.supabaseUrl.replace('/rest/v1', ''); // Remove /rest/v1 se presente
-    const edgeFunctionUrl = `${baseUrl}/functions/v1/recent-alerts`;
+    const params = {
+      p_session_id: sessionId,
+      p_limit: limit,
+      p_since: since,
+    };
 
-    const response = await fetch(edgeFunctionUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${cfg.anonKey}`,
-      },
-    });
+    const { data, error } = await sb.rpc('get_fernanda_recent_alerts', params);
 
-    if (!response.ok) {
-      if (response.status === 502) {
-        console.error('[Fernanda Alerts] 502: Problema ao chamar REST API (verifique permissões RLS)');
-      } else if (response.status === 500) {
-        console.error('[Fernanda Alerts] 500: Variáveis de ambiente ausentes ou erro interno');
-      } else {
-        console.error(`[Fernanda Alerts] Erro HTTP ${response.status}`);
-      }
+    if (error) {
+      console.error('[Fernanda Alerts] Erro ao chamar RPC get_fernanda_recent_alerts:', error);
       return null;
     }
 
-    const data: FernandaAlertsResponse = await response.json();
-    return data.alerts || [];
+    // data será um array de objetos (rows)
+    return (data as FernandaAlert[]) || [];
   } catch (err) {
     console.error('[Fernanda Alerts] Erro inesperado:', err);
     return null;
   }
 }
+
 
 
 // ============================================================================
