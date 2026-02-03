@@ -187,11 +187,11 @@ export default function FernandaPage() {
   // Cálculos derivados do funil
   const funnelStages = funnelData
     ? [
-        { stage: 'Carteira (Base Total)', value: funnelData.base_total, fill: '#94a3b8', icon: Users },
-        { stage: 'WhatsApp Válido', value: funnelData.validos, fill: '#3b82f6', icon: CheckCircle2 },
-        { stage: 'Com Intenção Real', value: funnelData.com_intencao, fill: '#22c55e', icon: TrendingUp },
-        { stage: 'Intervenção Humana', value: funnelData.intervencoes, fill: '#f97316', icon: PhoneOff },
-      ]
+      { stage: 'Carteira (Base Total)', value: funnelData.base_total, fill: '#94a3b8', icon: Users },
+      // { stage: 'WhatsApp Válido', value: funnelData.validos, fill: '#3b82f6', icon: CheckCircle2 }, // REMOVIDO
+      { stage: 'Com Intenção Real', value: funnelData.com_intencao, fill: '#22c55e', icon: TrendingUp },
+      { stage: 'Intervenção Humana', value: funnelData.intervencoes, fill: '#f97316', icon: PhoneOff },
+    ]
     : [];
   const maxFunnelValue = funnelStages.length ? Math.max(...funnelStages.map((d) => d.value), 1) : 1;
 
@@ -515,51 +515,46 @@ export default function FernandaPage() {
           {/* Cards de métricas */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Card Fila */}
-            <div className={`rounded-lg border p-4 ${
-              hasQueueWarning
+            <div className={`rounded-lg border p-4 ${hasQueueWarning
                 ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10'
                 : 'border-gray-200 dark:border-gray-700'
-            }`}>
+              }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <Inbox className={`h-4 w-4 ${hasQueueWarning ? 'text-amber-600' : ''}`} />
                 Fila Pendente
               </div>
-              <p className={`mt-2 text-2xl font-semibold ${
-                hasQueueWarning
+              <p className={`mt-2 text-2xl font-semibold ${hasQueueWarning
                   ? 'text-amber-600 dark:text-amber-400'
                   : 'text-gray-900 dark:text-white'
-              }`}>
+                }`}>
                 {filaPendente}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">mensagens aguardando envio</p>
             </div>
 
             {/* Card Taxa de Intervenção */}
-            <div className={`rounded-lg border p-4 ${
-              hasInterventionAlert
+            <div className={`rounded-lg border p-4 ${hasInterventionAlert
                 ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
                 : 'border-gray-200 dark:border-gray-700'
-            }`}>
+              }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <MessageSquare className={`h-4 w-4 ${hasInterventionAlert ? 'text-red-600' : ''}`} />
                 Taxa de Intervenção
               </div>
-              <p className={`mt-2 text-2xl font-semibold ${
-                hasInterventionAlert
+              <p className={`mt-2 text-2xl font-semibold ${hasInterventionAlert
                   ? 'text-red-600 dark:text-red-400'
                   : 'text-gray-900 dark:text-white'
-              }`}>
+                }`}>
                 {taxaIntervencao.toFixed(1)}%
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">leads que precisaram de humano</p>
             </div>
 
             {/* Card Erros */}
-            <div className={`rounded-lg border p-4 ${
-              (governanceData?.ultimos_erros?.length ?? 0) > 0
+            <div className={`rounded-lg border p-4 ${(governanceData?.ultimos_erros?.length ?? 0) > 0
                 ? 'border-amber-200 dark:border-amber-800'
                 : 'border-gray-200 dark:border-gray-700'
-            }`}>
+              }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <AlertTriangle className={`h-4 w-4 ${(governanceData?.ultimos_erros?.length ?? 0) > 0 ? 'text-amber-600' : ''}`} />
                 Erros Recentes
