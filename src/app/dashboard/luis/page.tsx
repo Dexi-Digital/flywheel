@@ -544,26 +544,6 @@ export default function LuisPage() {
 
       {/* SEÇÃO 4: Infraestrutura e Governança */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Status WhatsApp */}
-        <Card className={`p-4 ${isWhatsappConnected ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-900/10'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Status WhatsApp</p>
-              <p className={`text-xl font-bold ${isWhatsappConnected ? 'text-green-600' : 'text-red-600'}`}>
-                {isWhatsappConnected ? 'Conectado' : 'Desconectado'}
-              </p>
-              {!isWhatsappConnected && (
-                <p className="text-xs text-red-600 mt-1">🚨 Sistema OFFLINE!</p>
-              )}
-            </div>
-            {isWhatsappConnected ? (
-              <Wifi className="h-10 w-10 text-green-500" />
-            ) : (
-              <WifiOff className="h-10 w-10 text-red-500 animate-pulse" />
-            )}
-          </div>
-        </Card>
-
         {/* Fila de Envio */}
         <Card className={`p-4 ${hasQueueCritical ? 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-900/10' : hasQueueWarning ? 'border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-900/10' : 'border-l-4 border-l-gray-300'}`}>
           <div className="flex items-center justify-between">
