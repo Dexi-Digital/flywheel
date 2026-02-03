@@ -336,8 +336,11 @@ export default function AlicePage() {
                   <div key={idx} className="flex justify-between items-center text-sm border-b border-gray-100 dark:border-gray-700 last:border-0 pb-2">
                     <span className="font-medium text-gray-700 dark:text-gray-300">
                       {(() => {
-                        try { return format(new Date(item.date), "dd/MM (EEEE)", { locale: ptBR }); }
-                        catch { return item.date; }
+                        try {
+                          if (!item.date) return 'Data não disponível';
+                          return format(new Date(item.date), "dd/MM (EEEE)", { locale: ptBR });
+                        }
+                        catch { return item.date || 'Data inválida'; }
                       })()}
                     </span>
                     <Badge variant="warning" className="bg-amber-50 text-amber-700 border-amber-200">

@@ -328,14 +328,14 @@ export default function FernandaPage() {
                   <div
                     key={alert.id}
                     className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4 hover:bg-amber-100/70 dark:hover:bg-amber-900/20 transition-colors cursor-pointer"
-                    onClick={() => handleLeadClick(alert.sessionId, alert.sessionId.split('@')[0])}
+                    onClick={() => handleLeadClick(alert.sessionId || '', alert.sessionId?.split('@')[0] || 'Desconhecido')}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
                           <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                            {alert.sessionId.split('@')[0]}
+                            {alert.sessionId?.split('@')[0] || 'Desconhecido'}
                           </span>
                         </div>
                         <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">

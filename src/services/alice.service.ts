@@ -413,16 +413,27 @@ export async function getAliceLeadList(): Promise<AliceLead[] | null> {
 
     // Normalizar e garantir tipos corretos
     // Campos nullable são preservados como null, não convertidos para string vazia
-    const leads: AliceLead[] = data.map((item: Record<string, unknown>) => ({
-      id: Number(item.id),
-      nome: String(item.nome ?? ''),
-      whatsapp: String(item.whatsapp ?? ''),
-      veiculo_interesse: item.veiculo_interesse != null ? String(item.veiculo_interesse) : null,
-      ultima_resposta: item.ultima_resposta != null ? String(item.ultima_resposta) : null,
-      session_id: String(item.session_id ?? ''),
-      data_proximo_contato: item.data_proximo_contato != null ? String(item.data_proximo_contato) : null,
-      precisa_intervencao: Boolean(item.precisa_intervencao),
-    }));
+    const leads: AliceLead[] = data.map((item: Record<string, unknown>) => {
+      const rawNome = String(item.nome ?? '');
+      const rawWhatsapp = String(item.whatsapp ?? '');
+
+      // Detectar se o campo nome contém um número de telefone (padrão brasileiro)
+      // Se sim, usar "Lead sem nome" como fallback
+      const isPhoneNumber = /^\+?55?\s?\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(rawNome.trim()) ||
+        /^\d{10,11}$/.test(rawNome.trim());
+      const nome = isPhoneNumber ? 'Lead sem nome' : rawNome || 'Lead sem nome';
+
+      return {
+        id: Number(item.id),
+        nome,
+        whatsapp: rawWhatsapp,
+        veiculo_interesse: item.veiculo_interesse != null ? String(item.veiculo_interesse) : null,
+        ultima_resposta: item.ultima_resposta != null ? String(item.ultima_resposta) : null,
+        session_id: String(item.session_id ?? ''),
+        data_proximo_contato: item.data_proximo_contato != null ? String(item.data_proximo_contato) : null,
+        precisa_intervencao: Boolean(item.precisa_intervencao),
+      };
+    });
 
     // Log para debug com métricas úteis
     const comResposta = leads.filter(l => l.ultima_resposta !== null).length;
@@ -538,8 +549,8 @@ export async function getAliceVehicleHeatmap(): Promise<AliceVehicleStat[] | nul
     const comLeads = stats.filter(s => s.total_leads > 0);
     const melhorVeiculo = comLeads.length > 0
       ? comLeads.reduce((best, curr) =>
-          (curr.total_respostas / curr.total_leads) > (best.total_respostas / best.total_leads) ? curr : best
-        )
+        (curr.total_respostas / curr.total_leads) > (best.total_respostas / best.total_leads) ? curr : best
+      )
       : null;
 
     console.log('[Alice VehicleHeatmap] Estatísticas carregadas:', {
@@ -640,7 +651,7 @@ export async function getAliceGovernanceAlerts(): Promise<AliceGovernanceData | 
 
     // Log para debug com análise de status
     const statusGeral = governance.intervention_rate > 10 ? 'CRÍTICO' :
-                        governance.buffer_queue > 0 ? 'ATENÇÃO' : 'SAUDÁVEL';
+      governance.buffer_queue > 0 ? 'ATENÇÃO' : 'SAUDÁVEL';
 
     console.log('[Alice Governance] Dados carregados:', {
       buffer_queue: governance.buffer_queue,
