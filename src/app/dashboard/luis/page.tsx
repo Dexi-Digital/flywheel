@@ -145,6 +145,12 @@ export default function LuisPage() {
     if (isBrainDrawerOpen && selectedLeadId) fetchBrainData();
   }, [isBrainDrawerOpen, selectedLeadId, fetchBrainData]);
 
+  const handleLeadClick = (nome: string, whatsapp: string) => {
+    setSelectedLeadId(whatsapp);
+    setSelectedLeadName(nome);
+    setIsBrainDrawerOpen(true);
+  };
+
   // Cálculos de Governança
   const gov = useMemo(() => {
     const fila = governanceData?.fila_envio ?? 0;
@@ -178,7 +184,7 @@ export default function LuisPage() {
               <Moon className="h-6 w-6" />
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Luís</h1>
-            <Badge variant="outline" className="h-6 border-indigo-200 bg-indigo-50 text-indigo-700">SDR Plantão 24/7</Badge>
+            <Badge variant="info" className="h-6 border-indigo-200 bg-indigo-50 text-indigo-700">SDR Plantão 24/7</Badge>
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-500">
             {userLoja && <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">🏪 {userLoja.nome}</span>}
@@ -361,7 +367,7 @@ export default function LuisPage() {
                       <div className="text-xs text-emerald-600 flex items-center gap-1 font-medium">{lead.whatsapp}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <Badge variant="secondary" className="rounded-md font-medium">
+                      <Badge variant="default" className="rounded-md font-medium">
                         {lead.interesse_veiculo || 'Geral'}
                       </Badge>
                     </td>
@@ -369,7 +375,7 @@ export default function LuisPage() {
                       {format(new Date(lead.horario_entrada), "HH:mm '•' dd/MM", { locale: ptBR })}
                     </td>
                     <td className="px-6 py-4">
-                      <p className="max-w-[250px] truncate text-xs text-slate-600 dark:text-slate-400" title={lead.resumo_ia}>
+                      <p className="max-w-[250px] truncate text-xs text-slate-600 dark:text-slate-400" title={lead.resumo_ia ?? undefined}>
                         {lead.resumo_ia || 'Aguardando interação...'}
                       </p>
                     </td>
