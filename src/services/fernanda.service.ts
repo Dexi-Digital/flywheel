@@ -18,210 +18,159 @@ function toStr(v: unknown): string | undefined {
   return String(v);
 }
 
-// Helper para obter o cliente
-function getClient(agentId: string = 'agent-fernanda') {
-  const cfg = getTenantConfig(agentId);
-  return getBrowserTenantClient(agentId, cfg);
-}
-
 // ============================================================================
-// FUNÇÕES - IMPLEMENTAÇÃO DIRETA (SEM RPC)
+// FUNÇÕES RPC - ENDPOINTS DO DASHBOARD FERNANDA
 // ============================================================================
 
 export async function getFernandaFunnelMetrics(): Promise<FernandaFunnelKPI | null> {
   try {
-    const sb = getClient();
+    const cfg = getTenantConfig('agent-fernanda');
+    const sb = getBrowserTenantClient('agent-fernanda', cfg);
 
-    // Buscar todos os leads para contagem (idealmente seria count(), mas para MVP vamos de select com head false ou limit)
-    // Supabase count é eficiente.
+    const { data, error } = await sb.rpc('get_fernanda_kpi_funnel');
 
-    const { count: baseTotal, error: errBase } = await sb
-      .from('leads_nao_convertidos_fase02')
-      .select('*', { count: 'exact', head: true })
-      .eq('VENDEDOR', 'Fernanda');
+    if (error) {
+      console.error('[Fernanda FunnelKPI] Erro:', error);
+      return null;
+    }
 
-    const { count: validos, error: errValidos } = await sb
-      .from('leads_nao_convertidos_fase02')
-      .select('*', { count: 'exact', head: true })
-      .eq('VENDEDOR', 'Fernanda')
-      .eq('CONTATADO', 'Sim');
+    if (!data) return null;
 
-    // Com intenção: leads onde INTENCAO não é nulo/vazio e não é 'Indefinido'/'Sem Interesse'
-    // Como SQL filter complexo pode ser chato, vamos pegar os leads contatados e filtrar, ou usar um filtro aproximado
-    // Vamos usar lógica simplificada no query builder
-    const { count: comIntencao, error: errIntencao } = await sb
-      .from('leads_nao_convertidos_fase02')
-      .select('*', { count: 'exact', head: true })
-      .eq('VENDEDOR', 'Fernanda')
-      .neq('INTENCAO', null)
-      .neq('INTENCAO', 'Indefinido')
-      .neq('INTENCAO', 'Sem Interesse');
+    // A resposta do RPC pode vir como array [{result: {...}}] ou objeto direto, dependendo da versão do PostgREST/Supabase wrapper
+    // O log do usuário mostrou: [{"result": {...}}]
+    let result = data;
+    if (Array.isArray(data) && data.length > 0 && data[0].result) {
+      result = data[0].result;
+    }
 
-    // Intervenções: Tabela intervencao_humana
-    const { count: intervencoes, error: errIntervencoes } = await sb
-      .from('intervencao_humana')
-      .select('*', { count: 'exact', head: true });
-
-    if (errBase) throw errBase;
-
-    return {
-      base_total: baseTotal || 0,
-      validos: validos || 0,
-      com_intencao: comIntencao || 0,
-      intervencoes: intervencoes || 0
-    };
+    return result as FernandaFunnelKPI;
   } catch (err) {
-    console.error('[Fernanda FunnelKPI] Erro:', err);
+    console.error('[Fernanda FunnelKPI] Erro inesperado:', err);
     return null;
   }
 }
 
 export async function getFernandaLeadList(): Promise<FernandaLead[] | null> {
   try {
-    const sb = getClient();
+    const cfg = getTenantConfig('agent-fernanda');
+    const sb = getBrowserTenantClient('agent-fernanda', cfg);
 
-    // Buscar leads recentes
-    const { data, error } = await sb
-      .from('leads_nao_convertidos_fase02')
-      .select('id, created_at, nome, whatsapp, VEICULO, INTENCAO, last_message_ia, last_message_lead, sessionId, CONTATADO')
-      .eq('VENDEDOR', 'Fernanda')
-      .order('created_at', { ascending: false })
-      .limit(50);
+    const { data, error } = await sb.rpc('get_fernanda_lead_list');
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Fernanda LeadList] Erro:', error);
+      return null;
+    }
+
     if (!data) return [];
 
-    return data.map((row: any) => {
-      const intencao = row.INTENCAO || 'Indefinido';
-      const precisaAtencao = !row.CONTATADO && (new Date().getTime() - new Date(row.created_at).getTime()) > 86400000; // Exemplo: > 24h sem contato
+    // Adaptação caso venha envelopado em 'result'
+    let rawList = data;
+    // O log do usuário mostrou: [{"result": {...}}, {"result": {...}}]
+    if (Array.isArray(data) && data.length > 0 && data[0].result) {
+      rawList = data.map((item: any) => item.result);
+    }
 
-      return {
-        id: row.id,
-        nome: row.nome || 'Sem Nome',
-        whatsapp: row.whatsapp,
-        veiculo: row.VEICULO,
-        intencao: intencao,
-        precisa_atencao: precisaAtencao,
-        ultima_interacao: row.last_message_ia || row.last_message_lead || row.created_at,
-        session_id: row.sessionId || '',
-        created_at: row.created_at
-      };
-    }).sort((a, b) => {
-      // Ordenação customizada no cliente
-      if (a.precisa_atencao && !b.precisa_atencao) return -1;
-      if (!a.precisa_atencao && b.precisa_atencao) return 1;
-      if (a.intencao !== 'Indefinido' && b.intencao === 'Indefinido') return -1;
-      return 0; // Mantém ordem de data
-    });
-
+    return rawList as FernandaLead[];
   } catch (err) {
-    console.error('[Fernanda LeadList] Erro:', err);
+    console.error('[Fernanda LeadList] Erro inesperado:', err);
     return null;
   }
 }
 
 export async function getFernandaActivityTimeline(): Promise<FernandaTimelineItem[] | null> {
   try {
-    const sb = getClient();
+    const cfg = getTenantConfig('agent-fernanda');
+    const sb = getBrowserTenantClient('agent-fernanda', cfg);
 
-    // Agregação manual simplificada: Pegar ultimas 100 mensagens e agrupar por dia
-    const { data, error } = await sb
-      .from('chat_histories_fase_02')
-      .select('created_at')
-      .order('created_at', { ascending: false })
-      .limit(500); // Amostra maior
+    const { data, error } = await sb.rpc('get_fernanda_activity_timeline');
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Fernanda Timeline] Erro:', error);
+      return null;
+    }
 
-    const countByDate: Record<string, number> = {};
-    data?.forEach((row: any) => {
-      const date = new Date(row.created_at).toISOString().split('T')[0];
-      countByDate[date] = (countByDate[date] || 0) + 1;
-    });
+    if (!data || !Array.isArray(data)) return [];
 
-    return Object.entries(countByDate).map(([date, count]) => ({
-      data: date,
-      total_conversas: count
-    })).sort((a, b) => a.data.localeCompare(b.data));
+    let rawList = data;
+    if (Array.isArray(data) && data.length > 0 && data[0].result) {
+      rawList = data.map((item: any) => item.result);
+    }
 
+    return rawList.map((item: any) => ({
+      data: String(item.data ?? ''),
+      total_conversas: Number(item.total_conversas) || 0,
+    }));
   } catch (err) {
-    console.error('[Fernanda Timeline] Erro:', err);
+    console.error('[Fernanda Timeline] Erro inesperado:', err);
     return null;
   }
 }
 
 export async function getFernandaIntentDistribution(): Promise<FernandaIntentStat[] | null> {
   try {
-    const sb = getClient();
+    const cfg = getTenantConfig('agent-fernanda');
+    const sb = getBrowserTenantClient('agent-fernanda', cfg);
 
-    // Buscar intents de todos os leads da Fernanda
-    // Nota: Se a base for grande, isso deveria ser RPC, mas para MVP vamos puxar os últimos 200
-    const { data, error } = await sb
-      .from('leads_nao_convertidos_fase02')
-      .select('INTENCAO')
-      .eq('VENDEDOR', 'Fernanda')
-      .limit(500);
+    const { data, error } = await sb.rpc('get_fernanda_intent_distribution');
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Fernanda IntentDistribution] Erro:', error);
+      return null;
+    }
 
-    const counts: Record<string, number> = {};
-    data?.forEach((row: any) => {
-      const intent = row.INTENCAO || 'Indefinido';
-      counts[intent] = (counts[intent] || 0) + 1;
-    });
+    if (!data || !Array.isArray(data)) return [];
 
-    return Object.entries(counts).map(([intencao, total]) => ({
-      intencao,
-      total
+    let rawList = data;
+    if (Array.isArray(data) && data.length > 0 && data[0].result) {
+      rawList = data.map((item: any) => item.result);
+    }
+
+    return rawList.map((item: any) => ({
+      intencao: String(item.intencao ?? 'Indefinido'),
+      total: Number(item.total) || 0,
     }));
-
   } catch (err) {
-    console.error('[Fernanda IntentDistribution] Erro:', err);
+    console.error('[Fernanda IntentDistribution] Erro inesperado:', err);
     return null;
   }
 }
 
 export async function getFernandaGovernance(): Promise<FernandaGovernanceData | null> {
   try {
-    const sb = getClient();
+    const cfg = getTenantConfig('agent-fernanda');
+    const sb = getBrowserTenantClient('agent-fernanda', cfg);
 
-    // Fila pendente (exemplo: mensagens em buffer ou leads sem contato)
-    const { count: filaPendente } = await sb
-      .from('leads_nao_convertidos_fase02')
-      .select('*', { count: 'exact', head: true })
-      .eq('VENDEDOR', 'Fernanda')
-      .eq('CONTATADO', 'Não'); // Assumindo 'Não' como pendente
+    const { data, error } = await sb.rpc('get_fernanda_governance');
 
-    // Taxa Intervenção (calculado sobre base total ou 100 ultimos)
-    const { count: intervencoes } = await sb.from('intervencao_humana').select('*', { count: 'exact', head: true });
-    // Pegar total de conversas para calcular taxa
-    const { count: totalConversas } = await sb.from('chat_histories_fase_02').select('*', { count: 'exact', head: true });
+    if (error) {
+      console.error('[Fernanda Governance] Erro:', error);
+      return null;
+    }
 
-    const taxa = totalConversas ? (intervencoes! / totalConversas) * 100 : 0;
+    if (!data) return null;
 
-    // Últimos erros (Curadoria com falha)
-    const { data: erros } = await sb
-      .from('curadoria')
-      .select('id, created_at, message_ai, internal_reasoning')
-      .not('internal_reasoning', 'is', null) // Assumindo que erros têm reasoning
-      .order('created_at', { ascending: false })
-      .limit(5);
+    let result = data;
+    // O log do usuário mostrou: [{"result": {...}}]
+    if (Array.isArray(data) && data.length > 0 && data[0].result) {
+      result = data[0].result;
+    }
 
-    const normalizedErrors: FernandaErrorLog[] = (erros || []).map((e: any) => ({
-      id: e.id,
-      created_at: e.created_at,
-      message_ai: e.message_ai,
-      internal_reasoning: e.internal_reasoning
+    const rawErrors = Array.isArray(result.ultimos_erros) ? result.ultimos_erros : [];
+    const normalizedErrors: FernandaErrorLog[] = rawErrors.map((err: any) => ({
+      id: Number(err.id) || 0,
+      created_at: String(err.created_at ?? new Date().toISOString()),
+      message_ai: err.message_ai != null ? String(err.message_ai) : null,
+      internal_reasoning: err.internal_reasoning ?? null,
     }));
 
     return {
-      fila_pendente: filaPendente || 0,
-      taxa_intervencao: taxa,
-      ultimos_erros: normalizedErrors
+      fila_pendente: Number(result.fila_pendente) || 0,
+      taxa_intervencao: Number(result.taxa_intervencao) || 0,
+      ultimos_erros: normalizedErrors,
     };
-
   } catch (err) {
-    console.error('[Fernanda Governance] Erro:', err);
+    console.error('[Fernanda Governance] Erro inesperado:', err);
     return null;
   }
 }

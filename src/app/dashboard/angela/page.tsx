@@ -8,40 +8,22 @@ import { useBrainDrawerData } from '@/hooks/use-brain-drawer-data';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
-import {
   HeartHandshake,
   AlertOctagon,
-  TrendingUp,
   ShieldAlert,
-  MessageCircleWarning,
   RefreshCw,
   AlertTriangle,
-  Users,
-  ThumbsUp,
-  ThumbsDown,
   Flame,
-  Activity,
-  Server,
   Brain,
+  Server,
+  MessageCircle,
+  Building2,
+  Calendar
 } from 'lucide-react';
 
 // Serviços RPC da Angela
 import {
-  getAngelaKpiPulse,
   getAngelaUrgentList,
-  getAngelaSentimentTimeline,
-  getAngelaProblemStats,
   getAngelaGovernance,
 } from '@/services/angela.service';
 
@@ -96,10 +78,7 @@ function parseEmojis(text: string): string {
 
 // Tipos da API Angela
 import type {
-  AngelaKpiPulse,
   AngelaUrgentLead,
-  AngelaSentimentPoint,
-  AngelaProblemStat,
   AngelaGovernanceData,
 } from '@/types/angela-api.types';
 
@@ -116,10 +95,7 @@ export default function AngelaPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [kpiPulse, setKpiPulse] = useState<AngelaKpiPulse | null>(null);
   const [urgentList, setUrgentList] = useState<AngelaUrgentLead[]>([]);
-  const [sentimentTimeline, setSentimentTimeline] = useState<AngelaSentimentPoint[]>([]);
-  const [problemStats, setProblemStats] = useState<AngelaProblemStat[]>([]);
   const [governanceData, setGovernanceData] = useState<AngelaGovernanceData | null>(null);
 
   // Estados do BrainDrawer
@@ -136,17 +112,11 @@ export default function AngelaPage() {
   const loadDashboard = useCallback(async () => {
     try {
       setError(null);
-      const [pulse, urgent, timeline, problems, governance] = await Promise.all([
-        getAngelaKpiPulse(),
+      const [urgent, governance] = await Promise.all([
         getAngelaUrgentList(),
-        getAngelaSentimentTimeline(),
-        getAngelaProblemStats(),
         getAngelaGovernance(),
       ]);
-      setKpiPulse(pulse);
       setUrgentList(urgent || []);
-      setSentimentTimeline(timeline || []);
-      setProblemStats(problems || []);
       setGovernanceData(governance);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dashboard');
@@ -222,9 +192,6 @@ export default function AngelaPage() {
 
   // Contadores de urgência
   const criticosCount = urgentList.filter(l => l.precisa_verificacao).length;
-  const negativosCount = urgentList.filter(l =>
-    l.sentimento?.toLowerCase().includes('negativo')
-  ).length;
 
   return (
     <div className="space-y-6 p-6">
@@ -250,305 +217,122 @@ export default function AngelaPage() {
         </button>
       </div>
 
-      {/* SEÇÃO 1: Pulso do Atendimento (KPI Cards) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Atendimentos */}
-        <Card className="p-4 border-l-4 border-l-blue-500">
+      {/* SEÇÃO PRINCIPAL: Lista de Incêndios (Urgent List) */}
+      <Card className="border-red-100 dark:border-red-900/30 shadow-md">
+        <CardHeader className="bg-red-50/50 dark:bg-red-900/10 pb-4 border-b border-red-50 dark:border-red-900/20">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Atendimentos</p>
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {kpiPulse?.total_atendimentos.toLocaleString('pt-BR') ?? 0}
-              </p>
-            </div>
-            <Users className="h-10 w-10 text-blue-500 opacity-50" />
-          </div>
-        </Card>
-
-        {/* Sentimento Positivo */}
-        <Card className="p-4 border-l-4 border-l-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Sentimento Positivo</p>
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {kpiPulse?.sentimento_positivo.toLocaleString('pt-BR') ?? 0}
-              </p>
-              {kpiPulse && kpiPulse.total_atendimentos > 0 && (
-                <p className="text-xs text-green-600">
-                  {((kpiPulse.sentimento_positivo / kpiPulse.total_atendimentos) * 100).toFixed(1)}% do total
-                </p>
-              )}
-            </div>
-            <ThumbsUp className="h-10 w-10 text-green-500 opacity-50" />
-          </div>
-        </Card>
-
-        {/* Sentimento Negativo */}
-        <Card className="p-4 border-l-4 border-l-red-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Sentimento Negativo</p>
-              <p className="text-3xl font-bold text-red-600 dark:text-red-400">
-                {kpiPulse?.sentimento_negativo.toLocaleString('pt-BR') ?? 0}
-              </p>
-              {kpiPulse && kpiPulse.total_atendimentos > 0 && (
-                <p className="text-xs text-red-600">
-                  {((kpiPulse.sentimento_negativo / kpiPulse.total_atendimentos) * 100).toFixed(1)}% do total
-                </p>
-              )}
-            </div>
-            <ThumbsDown className="h-10 w-10 text-red-500 opacity-50" />
-          </div>
-        </Card>
-
-        {/* Problemas Detectados */}
-        <Card className="p-4 border-l-4 border-l-orange-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Problemas Detectados</p>
-              <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">
-                {kpiPulse?.problemas_detectados.toLocaleString('pt-BR') ?? 0}
-              </p>
-            </div>
-            <AlertOctagon className="h-10 w-10 text-orange-500 opacity-50" />
-          </div>
-        </Card>
-      </div>
-
-      {/* SEÇÃO 2: Gráficos de Análise (Split View) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Evolução de Sentimento (Timeline) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-purple-600" />
-              Evolução de Sentimento (30 dias)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {sentimentTimeline.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={sentimentTimeline} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="colorPositivos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0.1}/>
-                    </linearGradient>
-                    <linearGradient id="colorNegativos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis
-                    dataKey="data"
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    tickFormatter={(value) => {
-                      try {
-                        return format(new Date(value), 'dd/MM', { locale: ptBR });
-                      } catch {
-                        return value;
-                      }
-                    }}
-                    tickLine={false}
-                    axisLine={{ stroke: '#e5e7eb' }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    tickLine={false}
-                    axisLine={{ stroke: '#e5e7eb' }}
-                    width={36}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                    }}
-                    labelFormatter={(value) => {
-                      try {
-                        return format(new Date(value), 'dd/MM/yyyy', { locale: ptBR });
-                      } catch {
-                        return String(value);
-                      }
-                    }}
-                  />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="positivos"
-                    name="Positivos"
-                    stroke="#22c55e"
-                    fillOpacity={1}
-                    fill="url(#colorPositivos)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="negativos"
-                    name="Negativos"
-                    stroke="#ef4444"
-                    fillOpacity={1}
-                    fill="url(#colorNegativos)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[280px] items-center justify-center text-gray-500 dark:text-gray-400">
-                <Activity className="h-8 w-8 mr-2 opacity-50" />
-                Sem dados de timeline
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Top Ofensores (Problemas) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageCircleWarning className="h-5 w-5 text-orange-600" />
-              Top Ofensores (Problemas Relatados)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {problemStats.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart
-                  data={problemStats.slice(0, 8)}
-                  layout="vertical"
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <YAxis
-                    dataKey="problema"
-                    type="category"
-                    width={100}
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                    }}
-                    formatter={(value: number | undefined) => {
-                      if (value === undefined) return ['0', 'Ocorrências'];
-                      const total = problemStats.reduce((sum, p) => sum + p.total, 0);
-                      const percent = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                      return [`${value} (${percent}%)`, 'Ocorrências'];
-                    }}
-                  />
-                  <Bar dataKey="total" fill="#f97316" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[280px] items-center justify-center text-gray-500 dark:text-gray-400">
-                <AlertOctagon className="h-8 w-8 mr-2 opacity-50" />
-                Sem dados de problemas
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* SEÇÃO 3: Lista de Incêndios (Urgent List) */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Flame className="h-5 w-5 text-red-600" />
-              Lista de Incêndios
+            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
+              <Flame className="h-6 w-6 text-red-600" />
+              Lista de Incêndios (Prioridade Alta)
               {criticosCount > 0 && (
-                <Badge className="bg-red-600 text-white animate-pulse ml-2">
+                <Badge variant="danger" className="ml-2 animate-pulse">
                   {criticosCount} crítico{criticosCount > 1 ? 's' : ''}
                 </Badge>
               )}
             </CardTitle>
             <div className="flex items-center gap-4 text-sm">
-              <span className="text-gray-500">
-                {urgentList.length} cliente{urgentList.length !== 1 ? 's' : ''} na fila
+              <span className="text-gray-600 dark:text-gray-400 font-medium">
+                {urgentList.length} cliente{urgentList.length !== 1 ? 's' : ''} na fila de atenção
               </span>
-              {negativosCount > 0 && (
-                <Badge className="border border-red-300 text-red-600 bg-transparent">
-                  {negativosCount} insatisfeito{negativosCount > 1 ? 's' : ''}
-                </Badge>
-              )}
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {urgentList.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="border-b bg-gray-50 dark:bg-gray-800">
+                <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 uppercase text-xs tracking-wider font-semibold border-b dark:border-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Cliente</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Loja</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Sentimento</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Problema</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Resumo</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Ação</th>
+                    <th className="px-6 py-4 text-left">Cliente / Contato</th>
+                    <th className="px-6 py-4 text-left">Loja</th>
+                    <th className="px-6 py-4 text-left">Status / Sentimento</th>
+                    <th className="px-6 py-4 text-left">Resumo / Contexto</th>
+                    <th className="px-6 py-4 text-left">Última Interação</th>
+                    <th className="px-6 py-4 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {urgentList.map((lead) => {
                     const isNegativo = lead.sentimento?.toLowerCase().includes('negativo');
-                    const rowClass = isNegativo
-                      ? 'bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-800';
+                    const isCritico = lead.precisa_verificacao;
+
+                    // Destaque suave para linhas críticas
+                    const rowClass = isCritico
+                      ? 'bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50/80 dark:hover:bg-red-900/20'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-800/50';
 
                     return (
                       <tr
                         key={lead.id}
-                        className={`border-b cursor-pointer transition-colors ${rowClass}`}
+                        className={`transition-colors cursor-pointer ${rowClass}`}
                         onClick={() => handleLeadClick(lead.id, lead.nome)}
                       >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900 dark:text-white">{lead.nome}</span>
-                            {lead.precisa_verificacao && (
-                              <Badge className="bg-red-600 text-white text-xs animate-pulse">
-                                Verificar Follow-up
-                              </Badge>
-                            )}
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                              {lead.nome}
+                              {isCritico && (
+                                <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                              )}
+                            </span>
+                            <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                              <MessageCircle className="h-3 w-3" />
+                              {lead.whatsapp}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500">{lead.whatsapp}</div>
                         </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                          {lead.loja || '-'}
+                        <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center gap-1.5">
+                            <Building2 className="h-3.5 w-3.5 opacity-50" />
+                            {lead.loja || 'N/A'}
+                          </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-6 py-4">
                           {lead.sentimento ? (
-                            <Badge className={
-                              isNegativo
-                                ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
-                                : lead.sentimento.toLowerCase().includes('positivo')
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                            }>
-                              {lead.sentimento}
-                            </Badge>
+                            <div className="flex flex-col gap-1 items-start">
+                              <Badge variant={
+                                isNegativo ? "danger" :
+                                  lead.sentimento.toLowerCase().includes('positivo') ? "success" : "default"
+                              }>
+                                {lead.sentimento}
+                              </Badge>
+                              {isCritico && (
+                                <Badge variant="warning" className="text-[10px] px-1.5 py-0 h-4 mt-1">
+                                  Verificar Follow-up
+                                </Badge>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-gray-400">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400 max-w-[200px] truncate">
-                          {lead.problema_relatado || '-'}
+                        <td className="px-6 py-4 text-gray-600 dark:text-gray-400 max-w-[300px]">
+                          <p className="line-clamp-2 text-xs leading-relaxed" title={lead.resumo || ''}>
+                            {lead.resumo || 'Sem resumo disponível.'}
+                          </p>
                         </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400 max-w-[250px]">
-                          <p className="line-clamp-2 text-xs">{lead.resumo || '-'}</p>
+                        <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Calendar className="h-3.5 w-3.5 opacity-70" />
+                            {(() => {
+                              try {
+                                return format(new Date(lead.data_interacao), "dd/MM HH:mm", { locale: ptBR });
+                              } catch {
+                                return '-';
+                              }
+                            })()}
+                          </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-6 py-4 text-right">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleLeadClick(lead.id, lead.nome);
                             }}
-                            className="inline-flex items-center gap-1 rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-pink-700"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 dark:bg-pink-900/30 px-3 py-1 text-xs font-semibold text-pink-700 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-colors"
                           >
-                            <Brain className="h-3 w-3" />
-                            Ver Cérebro
+                            <Brain className="h-3.5 w-3.5" />
+                            Analisar
                           </button>
                         </td>
                       </tr>
@@ -558,109 +342,120 @@ export default function AngelaPage() {
               </table>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
-              <HeartHandshake className="h-12 w-12 mb-4 opacity-50" />
-              <p className="text-lg font-medium">Nenhum incêndio no momento!</p>
-              <p className="text-sm">Todos os clientes estão satisfeitos 🎉</p>
+            <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
+              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-full mb-4">
+                <HeartHandshake className="h-10 w-10 text-green-500" />
+              </div>
+              <p className="text-lg font-medium text-gray-900 dark:text-white">Nenhum incêndio no momento!</p>
+              <p className="text-sm max-w-sm text-center mt-2">
+                Todos os clientes prioritários foram atendidos ou estão satisfeitos. Acompanhe a governança abaixo.
+              </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* SEÇÃO 4: Governança e Saúde Técnica */}
-      <Card>
+      {/* SEÇÃO 2: Governança e Saúde Técnica */}
+      <Card className="bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-slate-600" />
-            Governança & Saúde do Sistema
+          <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300 text-lg">
+            <ShieldAlert className="h-5 w-5" />
+            Saúde Operacional (Governança)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Fila Técnica */}
-            <div className={`p-4 rounded-lg border ${
-              hasQueueCritical
-                ? 'bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700'
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            {/* Cards de Métricas */}
+            <div className="space-y-4">
+              {/* Fila Técnica */}
+              <div className={`p-4 rounded-xl border flex items-center justify-between ${hasQueueCritical
+                ? 'bg-red-50 border-red-200 dark:bg-red-900/10'
                 : hasQueueWarning
-                  ? 'bg-yellow-50 border-yellow-300 dark:bg-yellow-900/20 dark:border-yellow-700'
-                  : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
-            }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Server className={`h-5 w-5 ${
-                  hasQueueCritical ? 'text-red-600' : hasQueueWarning ? 'text-yellow-600' : 'text-gray-600'
-                }`} />
-                <span className="font-medium text-gray-700 dark:text-gray-300">Fila de Mensagens</span>
+                  ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/10'
+                  : 'bg-white border-slate-200 dark:bg-slate-800'
+                }`}>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Fila de Mensagens</p>
+                  <p className={`text-2xl font-black ${hasQueueCritical ? 'text-red-600' : hasQueueWarning ? 'text-amber-600' : 'text-slate-700 dark:text-white'
+                    }`}>
+                    {filaTecnica}
+                  </p>
+                </div>
+                <Server className={`h-8 w-8 opacity-20 ${hasQueueCritical ? 'text-red-600' : 'text-slate-600'
+                  }`} />
               </div>
-              <p className={`text-3xl font-bold ${
-                hasQueueCritical ? 'text-red-600' : hasQueueWarning ? 'text-yellow-600' : 'text-gray-900 dark:text-white'
-              }`}>
-                {filaTecnica}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {hasQueueCritical ? '⚠️ Sistema sobrecarregado!' : hasQueueWarning ? '⚡ Lentidão detectada' : '✓ Normal'}
-              </p>
+
+              {/* Perda de Contexto */}
+              <div className={`p-4 rounded-xl border flex items-center justify-between ${hasContextLoss
+                ? 'bg-red-50 border-red-200 dark:bg-red-900/10'
+                : 'bg-white border-slate-200 dark:bg-slate-800'
+                }`}>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Perda de Contexto</p>
+                  <p className={`text-2xl font-black ${hasContextLoss ? 'text-red-600' : 'text-slate-700 dark:text-white'}`}>
+                    {perdaContexto}
+                  </p>
+                </div>
+                <Brain className={`h-8 w-8 opacity-20 ${hasContextLoss ? 'text-red-600' : 'text-slate-600'}`} />
+              </div>
             </div>
 
-            {/* Perda de Contexto */}
-            <div className={`p-4 rounded-lg border ${
-              hasContextLoss
-                ? 'bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700'
-                : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
-            }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Brain className={`h-5 w-5 ${hasContextLoss ? 'text-red-600' : 'text-gray-600'}`} />
-                <span className="font-medium text-gray-700 dark:text-gray-300">Perda de Contexto (IA)</span>
+            {/* Log de Alertas */}
+            <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Log de Alertas Recentes
+                  <Badge variant="default" className="ml-2 font-normal bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 hover:bg-slate-200">
+                    {governanceData?.ultimos_alertas?.length ?? 0}
+                  </Badge>
+                </h4>
               </div>
-              <p className={`text-3xl font-bold ${hasContextLoss ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                {perdaContexto}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {hasContextLoss ? '🚨 IA perdendo contexto em conversas!' : '✓ IA funcionando normalmente'}
-              </p>
-            </div>
 
-            {/* Alertas Recentes */}
-            <div className="p-4 rounded-lg border bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="h-5 w-5 text-gray-600" />
-                <span className="font-medium text-gray-700 dark:text-gray-300">Alertas Recentes</span>
-              </div>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                {governanceData?.ultimos_alertas?.length ?? 0}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">últimas 24h</p>
-            </div>
-          </div>
-
-          {/* Lista de Alertas */}
-          {governanceData?.ultimos_alertas && governanceData.ultimos_alertas.length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Últimos Alertas do Sistema</h4>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {governanceData.ultimos_alertas.slice(0, 10).map((alerta, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-3 p-2 rounded bg-gray-100 dark:bg-gray-700 text-sm"
-                  >
-                    <AlertOctagon className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-gray-800 dark:text-gray-200 whitespace-pre-line text-xs">{parseEmojis(alerta.alerta)}</p>
-                      <p className="text-xs text-gray-500">
-                        {(() => {
-                          try {
-                            return format(new Date(alerta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR });
-                          } catch {
-                            return alerta.created_at;
-                          }
-                        })()}
-                        {alerta.sessionId && ` • Sessão: ${alerta.sessionId.slice(0, 8)}...`}
-                      </p>
+              {governanceData?.ultimos_alertas && governanceData.ultimos_alertas.length > 0 ? (
+                <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                  {governanceData.ultimos_alertas.slice(0, 50).map((alerta, idx) => (
+                    <div
+                      key={idx}
+                      className="flex gap-3 items-start p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700"
+                    >
+                      <div className="mt-0.5">
+                        <AlertOctagon className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-line leading-relaxed">
+                          {parseEmojis(alerta.alerta)}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
+                          <span>
+                            {(() => {
+                              try {
+                                return format(new Date(alerta.created_at), "dd 'de' MMM • HH:mm", { locale: ptBR });
+                              } catch {
+                                return alerta.created_at;
+                              }
+                            })()}
+                          </span>
+                          {alerta.sessionId && (
+                            <span className="bg-slate-200 dark:bg-slate-600 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 font-mono text-[10px]">
+                              ID: {alerta.sessionId.slice(0, 8)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[180px] text-slate-400">
+                  <ShieldAlert className="h-8 w-8 opacity-20 mb-2" />
+                  <p className="text-sm">Sistema estável. Nenhum alerta recente.</p>
+                </div>
+              )}
             </div>
-          )}
+
+          </div>
         </CardContent>
       </Card>
 

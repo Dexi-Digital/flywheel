@@ -451,11 +451,11 @@ function MetricItem({ label, value, icon, highlight }: any) {
 
 function getAgentHref(agentId: string): string {
   switch (agentId) {
-    case 'agent-luis': return '/luis';
-    case 'agent-alice': return '/alice';
-    case 'agent-fernanda': return '/fernanda';
-    case 'agent-angela': return '/angela';
-    case 'agent-vitor': return '/kanban'; // Vitor geralmente cuida do Kanban/Fechamento
+    case 'agent-luis': return '/dashboard/luis'; // ASSUMING THIS IS THE PATTERN
+    case 'agent-alice': return '/dashboard/alice'; // ASSUMING THIS IS THE PATTERN
+    case 'agent-fernanda': return '/dashboard/fernanda'; // FIXED
+    case 'agent-angela': return '/dashboard/angela'; // ASSUMING THIS IS THE PATTERN
+    case 'agent-vitor': return '/dashboard/kanban'; // Vitor geralmente cuida do Kanban/Fechamento
     default: return '/dashboard';
   }
 }

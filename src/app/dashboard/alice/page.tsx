@@ -56,6 +56,7 @@ export default function AlicePage() {
 
   // Paginação do heatmap de veículos
   const [vehicleLimit, setVehicleLimit] = useState(15);
+  const [leadLimit, setLeadLimit] = useState(10);
 
   const { data: brainData, fetchBrainData } = useBrainDrawerData({
     agentId: 'alice',
@@ -134,10 +135,10 @@ export default function AlicePage() {
   // Funil: Total Base → Válidos → Contatados → Engajados (Responderam)
   const funnelData: FunnelData[] = kpiFunnel
     ? [
-        { stage: 'Total Base', value: kpiFunnel.total_base, fill: '#94a3b8' },
-        { stage: 'Contatados', value: kpiFunnel.contatados, fill: '#3b82f6' },
-        { stage: 'Engajados (Responderam)', value: kpiFunnel.engajados, fill: '#10b981' },
-      ]
+      { stage: 'Total Base', value: kpiFunnel.total_base, fill: '#94a3b8' },
+      { stage: 'Contatados', value: kpiFunnel.contatados, fill: '#3b82f6' },
+      { stage: 'Engajados (Responderam)', value: kpiFunnel.engajados, fill: '#10b981' },
+    ]
     : [];
   const maxFunnelValue = funnelData.length ? Math.max(...funnelData.map((d) => d.value), 1) : 1;
 
@@ -256,69 +257,100 @@ export default function AlicePage() {
             Atividade — Disparos e Previsão
           </CardTitle>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Barras sólidas: contatos realizados. Barras tracejadas: follow-ups previstos (shot_fired = false).
+            Barras sólidas: contatos realizados.
           </p>
         </CardHeader>
         <CardContent>
-          {timelineMerged.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={timelineMerged} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 11, fill: '#6b7280' }}
-                  tickLine={false}
-                  axisLine={{ stroke: '#e5e7eb' }}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#6b7280' }}
-                  tickLine={false}
-                  axisLine={{ stroke: '#e5e7eb' }}
-                  width={36}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                  }}
-                  labelFormatter={(_, payload) => {
-                    const dateStr = payload?.[0]?.payload?.date;
-                    if (!dateStr) return '';
-                    try {
-                      const parsedDate = new Date(dateStr);
-                      if (!isNaN(parsedDate.getTime())) {
-                        return format(parsedDate, "dd/MM/yyyy", { locale: ptBR });
-                      }
-                      return dateStr;
-                    } catch {
-                      return dateStr;
-                    }
-                  }}
-                  formatter={(value, name) => [
-                    formatNumber(Number(value) || 0),
-                    name === 'disparos' ? 'Disparos (realizado)' : 'Previsão (follow-ups)',
-                  ]}
-                />
-                <Legend />
-                <ReferenceLine x={format(new Date(), 'dd/MM', { locale: ptBR })} stroke="#94a3b8" strokeDasharray="3 3" />
-                <Bar dataKey="disparos" name="Disparos (realizado)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar
-                  dataKey="previsao"
-                  name="Previsão (follow-ups)"
-                  fill="#f59e0b"
-                  stroke="#d97706"
-                  strokeWidth={2}
-                  strokeDasharray="4 2"
-                  radius={[4, 4, 0, 0]}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-[300px] items-center justify-center text-gray-500 dark:text-gray-400">
-              Sem dados de disparos ou previsão
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <h4 className="text-sm font-medium text-gray-500 mb-4">Histórico de Disparos (Realizado)</h4>
+              {timelineMerged.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={timelineMerged} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tickLine={false}
+                      axisLine={{ stroke: '#e5e7eb' }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tickLine={false}
+                      axisLine={{ stroke: '#e5e7eb' }}
+                      width={36}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                      }}
+                      labelFormatter={(_, payload) => {
+                        const dateStr = payload?.[0]?.payload?.date;
+                        if (!dateStr) return '';
+                        try {
+                          const parsedDate = new Date(dateStr);
+                          if (!isNaN(parsedDate.getTime())) {
+                            return format(parsedDate, "dd/MM/yyyy", { locale: ptBR });
+                          }
+                          return dateStr;
+                        } catch {
+                          return dateStr;
+                        }
+                      }}
+                      formatter={(value, name) => [
+                        formatNumber(Number(value) || 0),
+                        name === 'disparos' ? 'Disparos (realizado)' : 'Previsão',
+                      ]}
+                    />
+                    <Legend />
+                    <ReferenceLine x={format(new Date(), 'dd/MM', { locale: ptBR })} stroke="#94a3b8" strokeDasharray="3 3" />
+                    <Bar dataKey="disparos" name="Disparos (realizado)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-[300px] items-center justify-center text-gray-500 dark:text-gray-400">
+                  Sem dados de disparos
+                </div>
+              )}
             </div>
-          )}
+
+            {/* KPI CARD: PREVISÃO FOLLOW-UPS (Extraído do gráfico) */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-6 border border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar className="w-5 h-5 text-amber-500" />
+                <h3 className="font-semibold text-gray-900 dark:text-white">Previsão de Follow-ups</h3>
+              </div>
+
+              <div className="mb-6">
+                <span className="text-4xl font-black text-amber-500 block">
+                  {(timelineActivity?.futuro?.reduce((acc, item) => acc + item.count, 0) || 0).toLocaleString('pt-BR')}
+                </span>
+                <span className="text-sm text-gray-500">agendados para os próximos dias</span>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-xs uppercase font-bold text-gray-400 tracking-wider">Próximos Picos</h4>
+                {timelineActivity?.futuro?.slice(0, 5).map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-sm border-b border-gray-100 dark:border-gray-700 last:border-0 pb-2">
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      {(() => {
+                        try { return format(new Date(item.date), "dd/MM (EEEE)", { locale: ptBR }); }
+                        catch { return item.date; }
+                      })()}
+                    </span>
+                    <Badge variant="warning" className="bg-amber-50 text-amber-700 border-amber-200">
+                      {item.count} leads
+                    </Badge>
+                  </div>
+                ))}
+                {(!timelineActivity?.futuro || timelineActivity.futuro.length === 0) && (
+                  <p className="text-sm text-gray-400 italic">Sem agendamentos futuros.</p>
+                )}
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -353,7 +385,7 @@ export default function AlicePage() {
                 </tr>
               </thead>
               <tbody>
-                {leadList.map((lead) => {
+                {leadList.slice(0, leadLimit).map((lead) => {
                   // Lógica visual: destacar leads engajados (que responderam)
                   const isEngajado = lead.ultima_resposta !== null;
                   const precisaIntervencao = lead.precisa_intervencao;
@@ -417,6 +449,16 @@ export default function AlicePage() {
           </div>
           {leadList.length === 0 && (
             <div className="py-12 text-center text-gray-500 dark:text-gray-400">Nenhum lead contatado na base.</div>
+          )}
+          {leadList.length > leadLimit && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setLeadLimit((prev) => prev + 15)}
+                className="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Carregar mais ({leadList.length - leadLimit} restantes)
+              </button>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -531,40 +573,36 @@ export default function AlicePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Card Fila - com destaque se > 0 */}
-            <div className={`rounded-lg border p-4 ${
-              (governanceAlerts?.buffer_represado ?? 0) > 0
-                ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10'
-                : 'border-gray-200 dark:border-gray-700'
-            }`}>
+            <div className={`rounded-lg border p-4 ${(governanceAlerts?.buffer_represado ?? 0) > 0
+              ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10'
+              : 'border-gray-200 dark:border-gray-700'
+              }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <Inbox className={`h-4 w-4 ${(governanceAlerts?.buffer_represado ?? 0) > 0 ? 'text-amber-600' : ''}`} />
                 Fila represada (buffer_message_bdr)
               </div>
-              <p className={`mt-2 text-2xl font-semibold ${
-                (governanceAlerts?.buffer_represado ?? 0) > 0
-                  ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-gray-900 dark:text-white'
-              }`}>
+              <p className={`mt-2 text-2xl font-semibold ${(governanceAlerts?.buffer_represado ?? 0) > 0
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-gray-900 dark:text-white'
+                }`}>
                 {governanceAlerts?.buffer_represado ?? 0}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">mensagens na fila</p>
             </div>
 
             {/* Card Taxa de Intervenção - com destaque se > 10% */}
-            <div className={`rounded-lg border p-4 ${
-              taxaIntervencao > 10
-                ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
-                : 'border-gray-200 dark:border-gray-700'
-            }`}>
+            <div className={`rounded-lg border p-4 ${taxaIntervencao > 10
+              ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
+              : 'border-gray-200 dark:border-gray-700'
+              }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <MessageSquare className={`h-4 w-4 ${taxaIntervencao > 10 ? 'text-red-600' : ''}`} />
                 Taxa de intervenção
               </div>
-              <p className={`mt-2 text-2xl font-semibold ${
-                taxaIntervencao > 10
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-gray-900 dark:text-white'
-              }`}>
+              <p className={`mt-2 text-2xl font-semibold ${taxaIntervencao > 10
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-gray-900 dark:text-white'
+                }`}>
                 {taxaIntervencao.toFixed(1)}%
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -573,11 +611,10 @@ export default function AlicePage() {
             </div>
 
             {/* Card Erros */}
-            <div className={`rounded-lg border p-4 ${
-              (governanceAlerts?.ultimos_erros?.length ?? 0) > 0
-                ? 'border-amber-200 dark:border-amber-800'
-                : 'border-gray-200 dark:border-gray-700'
-            }`}>
+            <div className={`rounded-lg border p-4 ${(governanceAlerts?.ultimos_erros?.length ?? 0) > 0
+              ? 'border-amber-200 dark:border-amber-800'
+              : 'border-gray-200 dark:border-gray-700'
+              }`}>
               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
                 <AlertTriangle className={`h-4 w-4 ${(governanceAlerts?.ultimos_erros?.length ?? 0) > 0 ? 'text-amber-600' : ''}`} />
                 Últimos erros (curadoria)

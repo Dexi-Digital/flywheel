@@ -54,7 +54,6 @@ export function Sidebar() {
           { id: 'agent-angela', nome: 'Angela' },
           { id: 'agent-alice', nome: 'Alice' },
           { id: 'agent-fernanda', nome: 'Fernanda' },
-          { id: 'agent-iza', nome: 'Iza' },
           { id: 'agent-vitor', nome: 'Vitor' },
         ];
 
