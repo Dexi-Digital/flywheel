@@ -408,12 +408,7 @@ export async function getLuisKpiPulse(): Promise<LuisKpiPulse | null> {
 
     // Tratamento de erro do Supabase
     if (error) {
-      console.error('[Luis KPI Pulse] Erro ao buscar KPIs:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
+      console.error('[Luis KPI Pulse] Erro ao buscar KPIs:', JSON.stringify(error, null, 2));
       return null;
     }
 

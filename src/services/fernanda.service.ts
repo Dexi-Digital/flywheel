@@ -32,7 +32,7 @@ export async function getFernandaFunnelMetrics(): Promise<FernandaFunnelKPI | nu
     const { data, error } = await sb.rpc('get_fernanda_kpi_funnel');
 
     if (error) {
-      console.error('[Fernanda FunnelKPI] Erro:', error);
+      console.error('[Fernanda FunnelKPI] Erro:', JSON.stringify(error, null, 2));
       return null;
     }
 

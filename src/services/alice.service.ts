@@ -213,12 +213,7 @@ export async function getAliceFunnelMetrics(): Promise<AliceFunnelKPI | null> {
 
     // Tratamento de erro do Supabase
     if (error) {
-      console.error('[Alice Funnel] Erro ao buscar KPIs do funil:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
+      console.error('[Alice Funnel] Erro ao buscar KPIs do funil:', JSON.stringify(error, null, 2));
       return null;
     }
 
